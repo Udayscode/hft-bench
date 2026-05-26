@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package benchmark;
+
+option go_package = "services/sandbox-orchestrator/internal/api/proto;benchmarkpb";
+
+service BenchmarkController {
+    rpc StartBenchmark(BenchmarkRequest) returns (BenchmarkResponse);
+}
+
+message BenchmarkRequest {
+    string vm_id = 1;
+    string target_ip = 2;
+    int32 port = 3;
+    int32 total_orders = 4;
+    int32 concurrency = 5;
+    string mode = 6; 
+}
+
+message LatencyPercentiles {
+    uint64 p50_micros = 1;
+    uint64 p90_micros = 2;
+    uint64 p99_micros = 3;
+}
+
+message BenchmarkResponse {
+    bool success = 1;
+    string error_message = 2;
+    int64 total_time_ms = 3;
+    int32 successful_acks = 4;
+    int32 failed_orders = 5;
+    LatencyPercentiles latencies = 6;
+}
