@@ -1,0 +1,5 @@
+services/bot-fleet/target/
+sandbox/rootfs.ext4
+sandbox/vmlinux.bin
+sandbox/firecracker-bin
+sandbox/strategy_bin

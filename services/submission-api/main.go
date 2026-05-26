@@ -281,9 +281,14 @@ func (a *App) run() {
 
 func initDB() (*sql.DB, error) {
 
+	dbPath := DBFile
+	if v := os.Getenv("DATABASE_PATH"); v != "" {
+		dbPath = v
+	}
+
 	db, err := sql.Open(
 		"sqlite3",
-		DBFile,
+		dbPath,
 	)
 
 	if err != nil {
@@ -487,7 +492,7 @@ func (s *SubmissionServer) handleSubmit(
 	}()
 
 	time.Sleep(
-		1500 * time.Millisecond,
+		3000 * time.Millisecond,
 	)
 
 	benchResponse, err :=
@@ -506,7 +511,7 @@ func (s *SubmissionServer) handleSubmit(
 					1000,
 
 				Concurrency:
-					5,
+					1,
 
 				Mode:
 					"burst",
@@ -538,11 +543,18 @@ func (s *SubmissionServer) handleSubmit(
 		return
 	}
 
+	var minID int64
+	_ = s.db.QueryRowContext(
+		ctx,
+		`SELECT COALESCE(MAX(id), 0) FROM benchmark_metrics`,
+	).Scan(&minID)
+
 	p99Micros,
 		successRate,
 		err := s.pollBenchmarkMetrics(
 		ctx,
 		submissionID,
+		minID,
 	)
 
 	if err != nil {
@@ -610,6 +622,7 @@ func (s *SubmissionServer) handleSubmit(
 func (s *SubmissionServer) pollBenchmarkMetrics(
 	ctx context.Context,
 	submissionID string,
+	minID int64,
 ) (
 	int64,
 	float64,
@@ -660,10 +673,12 @@ func (s *SubmissionServer) pollBenchmarkMetrics(
 					success_rate
 				FROM benchmark_metrics
 				WHERE submission_id = ?
+				  AND id > ?
 				ORDER BY id DESC
 				LIMIT 1
 				`,
 				submissionID,
+				minID,
 			).Scan(
 				&p99,
 				&successRate,

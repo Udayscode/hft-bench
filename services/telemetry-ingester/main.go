@@ -141,9 +141,14 @@ func main() {
 
 func initDB() (*sql.DB, error) {
 
+	dbPath := DBFile
+	if v := os.Getenv("DATABASE_PATH"); v != "" {
+		dbPath = v
+	}
+
 	db, err := sql.Open(
 		"sqlite3",
-		DBFile,
+		dbPath,
 	)
 
 	if err != nil {

@@ -1,0 +1,106 @@
+services:
+  # 1. REDPANDA STREAMING LAYER
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.2.1
+    container_name: hft-redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --check=false
+      - --node-id=0
+      - --kafka-addr=plaintext://0.0.0.0:9092
+      - --advertise-kafka-addr=plaintext://127.0.0.1:9092
+    ports:
+      - "19092:19092"
+      - "9092:9092"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    network_mode: "host" 
+
+  # 2. BOT FLEET (Rust Load Generator)
+  bot-fleet:
+    build:
+      context: .
+      dockerfile: services/bot-fleet/Dockerfile
+    container_name: hft-bot-fleet
+    restart: unless-stopped
+    environment:
+      KAFKA_BROKER: localhost:9092 
+      ORCHESTRATOR_URL: http://localhost:50051
+      RUST_LOG: info
+    network_mode: "host"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  # 3. TELEMETRY INGESTER
+  telemetry-ingester:
+    build:
+      context: ./services/telemetry-ingester
+      dockerfile: Dockerfile
+    container_name: hft-telemetry-ingester
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      KAFKA_BROKER: localhost:9092
+      DATABASE_PATH: /data/metrics.db
+    volumes:
+      - hft-db-data:/data
+
+  # 4. SUBMISSION API
+  submission-api:
+    build:
+      context: ./services/submission-api
+      dockerfile: Dockerfile
+    container_name: hft-submission-api
+    restart: unless-stopped
+    network_mode: "host"
+    ports:
+      - "8080:8080"
+    environment:
+      BOT_FLEET_URL: localhost:50052
+      ORCHESTRATOR_URL: localhost:50051
+      DATABASE_PATH: /data/metrics.db
+    volumes:
+      - hft-db-data:/data
+    depends_on:
+      bot-fleet:
+        condition: service_started
+
+  # 5. LEADERBOARD UI
+  leaderboard:
+    build:
+      context: ./services/leaderboard
+      dockerfile: Dockerfile
+    container_name: hft-leaderboard
+    restart: unless-stopped
+    network_mode: "host"
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_PATH: /data/metrics.db
+    volumes:
+      - hft-db-data:/data
+
+volumes:
+  hft-db-data:
+    driver: local
+  redpanda-data:
+    driver: local
