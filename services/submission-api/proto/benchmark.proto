@@ -31,3 +31,35 @@ message BenchmarkResponse {
     int32 failed_orders = 5;
     LatencyPercentiles latencies = 6;
 }
+
+service BenchmarkWorker {
+    rpc StartBenchmark(StartRequest) returns (StartResponse);
+    rpc MatchOrder(MatchOrderRequest) returns (MatchOrderResponse);
+}
+
+message StartRequest {
+    string submission_id = 1;
+}
+
+message StartResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message MatchOrderRequest {
+    uint64 order_id = 1;
+    uint64 price = 2;
+    uint32 quantity = 3;
+    int32 side = 4;
+}
+
+message TradeSignal {
+    uint64 maker_order_id = 1;
+    uint64 taker_order_id = 2;
+    uint64 price = 3;
+    uint32 quantity = 4;
+}
+
+message MatchOrderResponse {
+    repeated TradeSignal trades = 1;
+}
