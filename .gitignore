@@ -1,0 +1,39 @@
+# ─── Rust ─────────────────────────────────────────────────────────────────────
+target/
+
+# ─── Go ───────────────────────────────────────────────────────────────────────
+# Compiled service binaries (no extension, named by service)
+services/sandbox-orchestrator/orchestrator-bin
+services/bot-fleet/bot-fleet
+services/telemetry-ingester/ingester-bin
+services/submission-api/api-bin
+services/leaderboard/leaderboard-bin
+# go.sum files are intentionally committed (lockfiles)
+
+# ─── Sandbox VM artifacts ──────────────────────────────────────────────────────
+# Large VM images and pre-built binaries — not versionable
+sandbox/rootfs.ext4
+sandbox/vmlinux.bin
+sandbox/firecracker-bin
+sandbox/strategy_bin
+
+# ─── Protobuf generated code ──────────────────────────────────────────────────
+# Ignore malformed nested proto output (protoc path-duplication bug)
+**/internal/api/proto/services/
+**/internal/pb/services/
+services/submission-api/services/
+
+# ─── Database files ───────────────────────────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# ─── Editor / IDE ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.save
+
+# ─── Misc ─────────────────────────────────────────────────────────────────────
+vendor/
+*.exe

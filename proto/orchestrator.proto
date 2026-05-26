@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package orchestrator;
+
+option go_package = "services/sandbox-orchestrator/internal/api/proto;orchestratorpb";
+
+service VMController {
+    rpc SpawnVM(SpawnRequest) returns (SpawnResponse);
+    rpc TeardownVM(TeardownRequest) returns (TeardownResponse);
+}
+
+enum EnvironmentType {
+    ENVIRONMENT_TYPE_UNSPECIFIED = 0;
+    LAPTOP = 1;
+    BARE_METAL = 2;
+}
+
+message SpawnRequest {
+    string submission_id = 1;
+    int32 vcpu_count = 2;
+    int32 memory_mib = 3;
+    EnvironmentType env_type = 4;
+}
+
+message SpawnResponse {
+    string vm_id = 1;
+    string ip_address = 2;
+
+    bool success = 3;
+
+    string error_message = 4;
+}
+
+message TeardownRequest {
+    string vm_id = 1;
+    bool force = 2;
+}
+
+message TeardownResponse {
+    bool success = 1;
+    string error_message = 2;
+}
