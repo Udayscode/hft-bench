@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>HFT Leaderboard</title>
+
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --panel-2: #334155;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: #334155;
+            --green: #4ade80;
+            --yellow: #fbbf24;
+            --blue: #38bdf8;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 32px;
+            background: var(--bg);
+            color: var(--text);
+
+            font-family:
+                Inter,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                Roboto,
+                sans-serif;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin: 0 0 12px;
+
+            color: var(--blue);
+
+            font-size: 32px;
+            font-weight: 800;
+
+            letter-spacing: 0.5px;
+        }
+
+        .subtext {
+            margin-bottom: 24px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+
+            margin-bottom: 20px;
+
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .pulse {
+            width: 10px;
+            height: 10px;
+
+            border-radius: 50%;
+
+            background: var(--green);
+
+            box-shadow: 0 0 10px var(--green);
+
+            animation: pulse 1.8s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.6;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.6;
+            }
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+
+            border: 1px solid var(--border);
+            border-radius: 12px;
+
+            background: var(--panel);
+
+            box-shadow:
+                0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+
+        thead {
+            background: var(--panel-2);
+        }
+
+        th,
+        td {
+            padding: 18px 20px;
+            text-align: left;
+        }
+
+        th {
+            color: var(--muted);
+
+            font-size: 13px;
+            font-weight: 700;
+
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        tbody tr {
+            border-top: 1px solid var(--border);
+
+            transition:
+                background 120ms ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .rank {
+            color: var(--yellow);
+            font-weight: 700;
+        }
+
+        .score {
+            color: var(--green);
+            font-weight: 700;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .error {
+            color: var(--danger);
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .footer {
+            margin-top: 16px;
+
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            th,
+            td {
+                padding: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>
+            HFT Simulation Leaderboard
+        </h1>
+
+        <div class="subtext">
+            Real-time benchmark telemetry streamed from sandboxed execution environments.
+        </div>
+
+        <div class="status-bar">
+            <span class="pulse"></span>
+
+            <span id="status-text">
+                Connecting...
+            </span>
+        </div>
+
+        <div class="table-wrapper">
+            <table aria-label="Leaderboard Table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Submission ID</th>
+                        <th>P99 Latency</th>
+                        <th>Success Rate</th>
+                        <th>Score</th>
+                    </tr>
+                </thead>
+
+                <tbody id="leaderboard-body">
+                    <tr>
+                        <td colspan="5" class="center muted">
+                            Loading leaderboard...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer" id="last-updated">
+            Waiting for first sync...
+        </div>
+    </div>
+
+    <script>
+
+        const API_ENDPOINT =
+            "/api/leaderboard";
+
+        const POLL_INTERVAL_MS =
+            2000;
+
+        const REQUEST_TIMEOUT_MS =
+            5000;
+
+        let pollingHandle = null;
+
+        let currentAbortController = null;
+
+        function setStatus(message, isError = false) {
+
+            const el =
+                document.getElementById(
+                    "status-text"
+                );
+
+            el.textContent = message;
+
+            el.className =
+                isError
+                    ? "error"
+                    : "";
+        }
+
+        function escapeHtml(value) {
+
+            const div =
+                document.createElement("div");
+
+            div.textContent =
+                String(value);
+
+            return div.innerHTML;
+        }
+
+        function renderEmpty(message) {
+
+            const tbody =
+                document.getElementById(
+                    "leaderboard-body"
+                );
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="center muted">
+                        ${escapeHtml(message)}
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderLeaderboard(rows) {
+
+            const tbody =
+                document.getElementById(
+                    "leaderboard-body"
+                );
+
+            if (!Array.isArray(rows) || rows.length === 0) {
+
+                renderEmpty(
+                    "No benchmark records available."
+                );
+
+                return;
+            }
+
+            tbody.innerHTML =
+                rows.map(row => {
+
+                    const successRate =
+                        Number(
+                            row.success_rate || 0
+                        ).toFixed(2);
+
+                    const score =
+                        Number(
+                            row.score || 0
+                        ).toFixed(2);
+
+                    return `
+                        <tr>
+                            <td class="rank">
+                                #${escapeHtml(row.rank)}
+                            </td>
+
+                            <td>
+                                <strong>
+                                    ${escapeHtml(row.submission_id)}
+                                </strong>
+                            </td>
+
+                            <td>
+                                ${Number(row.p99_micros).toLocaleString()} µs
+                            </td>
+
+                            <td>
+                                ${successRate}%
+                            </td>
+
+                            <td class="score">
+                                ${score}
+                            </td>
+                        </tr>
+                    `;
+                }).join("");
+        }
+
+        async function fetchLeaderboard() {
+
+            if (currentAbortController) {
+                currentAbortController.abort();
+            }
+
+            currentAbortController =
+                new AbortController();
+
+            const timeoutHandle =
+                setTimeout(() => {
+                    currentAbortController.abort();
+                }, REQUEST_TIMEOUT_MS);
+
+            try {
+
+                const response =
+                    await fetch(
+                        API_ENDPOINT,
+                        {
+                            method: "GET",
+
+                            headers: {
+                                "Accept":
+                                    "application/json"
+                            },
+
+                            signal:
+                                currentAbortController.signal
+                        }
+                    );
+
+                clearTimeout(timeoutHandle);
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        `HTTP ${response.status}`
+                    );
+                }
+
+                const data =
+                    await response.json();
+
+                renderLeaderboard(data);
+
+                setStatus(
+                    "Live sync active"
+                );
+
+                document.getElementById(
+                    "last-updated"
+                ).textContent =
+                    `Last updated: ${new Date().toLocaleTimeString()}`;
+
+            } catch (err) {
+
+                if (err.name === "AbortError") {
+
+                    setStatus(
+                        "Request timeout",
+                        true
+                    );
+
+                    return;
+                }
+
+                console.error(
+                    "[leaderboard] fetch failure:",
+                    err
+                );
+
+                setStatus(
+                    "Connection degraded",
+                    true
+                );
+
+                renderEmpty(
+                    "Failed to fetch leaderboard data."
+                );
+            }
+        }
+
+        function startPolling() {
+
+            if (pollingHandle) {
+                return;
+            }
+
+            fetchLeaderboard();
+
+            pollingHandle =
+                setInterval(
+                    fetchLeaderboard,
+                    POLL_INTERVAL_MS
+                );
+        }
+
+        function stopPolling() {
+
+            if (pollingHandle) {
+
+                clearInterval(
+                    pollingHandle
+                );
+
+                pollingHandle = null;
+            }
+        }
+
+        document.addEventListener(
+            "visibilitychange",
+            () => {
+
+                if (document.hidden) {
+
+                    stopPolling();
+
+                } else {
+
+                    startPolling();
+                }
+            }
+        );
+
+        window.addEventListener(
+            "beforeunload",
+            () => {
+
+                stopPolling();
+
+                if (currentAbortController) {
+                    currentAbortController.abort();
+                }
+            }
+        );
+
+        startPolling();
+
+    </script>
+
+</body>
+
+</html>
