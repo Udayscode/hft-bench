@@ -22,7 +22,7 @@ use proto::{
     TradeSignal,
 };
 
-const SERVER_ADDR: &str = "[::]:8080";
+// We construct SERVER_ADDR dynamically in main to support configurable ports
 const MAX_TRADES_PER_MATCH: usize = 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -380,6 +380,11 @@ impl BenchmarkWorker for ShadowWorkerRuntime {
 
         let side = Side::try_from(req.side)?;
 
+        println!(
+            "[shadow-engine] matching order id={} price={} qty={} side={:?}",
+            req.order_id, req.price, req.quantity, side
+        );
+
         let order = Order {
             id: req.order_id,
             price: req.price,
@@ -391,6 +396,13 @@ impl BenchmarkWorker for ShadowWorkerRuntime {
             let mut order_book = self.order_book.write().await;
             order_book.submit_order(order)
         };
+
+        if !trades.is_empty() {
+            println!(
+                "[shadow-engine] order id={} generated {} trades",
+                req.order_id, trades.len()
+            );
+        }
 
         let response_trades = trades
             .into_iter()
@@ -406,17 +418,45 @@ impl BenchmarkWorker for ShadowWorkerRuntime {
             trades: response_trades,
         }))
     }
+
+    async fn cancel_order(
+        &self,
+        request: Request<proto::CancelOrderRequest>,
+    ) -> Result<Response<proto::CancelOrderResponse>, Status> {
+        let req = request.into_inner();
+
+        if req.order_id == 0 {
+            return Err(Status::invalid_argument("order_id cannot be zero"));
+        }
+
+        println!("[shadow-engine] canceling order id={}", req.order_id);
+
+        let success = {
+            let mut order_book = self.order_book.write().await;
+            order_book.cancel_order(req.order_id)
+        };
+
+        if success {
+            println!("[shadow-engine] cancel successful for order id={}", req.order_id);
+        } else {
+            println!("[shadow-engine] cancel failed (order not found) for id={}", req.order_id);
+        }
+
+        Ok(Response::new(proto::CancelOrderResponse { success }))
+    }
 }
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = SERVER_ADDR.parse()?;
+    let port = std::env::var("PORT").unwrap_or_else(|_| "50053".to_string());
+    let addr_str = format!("[::]:{}", port);
+    let addr = addr_str.parse()?;
 
     let runtime = ShadowWorkerRuntime::new();
 
     println!(
         "[shadow-engine] grpc matching engine listening on {}",
-        SERVER_ADDR
+        addr_str
     );
 
     Server::builder()

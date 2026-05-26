@@ -44,6 +44,7 @@ services:
     environment:
       KAFKA_BROKER: localhost:9092 
       ORCHESTRATOR_URL: http://localhost:50051
+      SHADOW_ENGINE_URL: http://localhost:50053
       RUST_LOG: info
     network_mode: "host"
     depends_on:
@@ -98,6 +99,19 @@ services:
       DATABASE_PATH: /data/metrics.db
     volumes:
       - hft-db-data:/data
+
+  # 6. SHADOW ENGINE (Reference gRPC Matching Engine)
+  shadow-engine:
+    build:
+      context: .
+      dockerfile: services/shadow-engine/Dockerfile
+    container_name: hft-shadow-engine
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      PORT: 50053
+      RUST_LOG: info
+
 
 volumes:
   hft-db-data:

@@ -35,6 +35,7 @@ message BenchmarkResponse {
 service BenchmarkWorker {
     rpc StartBenchmark(StartRequest) returns (StartResponse);
     rpc MatchOrder(MatchOrderRequest) returns (MatchOrderResponse);
+    rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
 }
 
 message StartRequest {
@@ -62,4 +63,12 @@ message TradeSignal {
 
 message MatchOrderResponse {
     repeated TradeSignal trades = 1;
+}
+
+message CancelOrderRequest {
+    uint64 order_id = 1;
+}
+
+message CancelOrderResponse {
+    bool success = 1;
 }

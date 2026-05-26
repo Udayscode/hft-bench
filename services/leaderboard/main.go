@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 	"time"
 
@@ -279,14 +280,10 @@ func (s *LeaderboardServer) getLeaderboardData(
 		`
 		SELECT
 			submission_id,
-			MIN(p99_micros) AS best_p99,
-			MAX(success_rate) AS best_success_rate
+			p50_micros,
+			p99_micros,
+			success_rate
 		FROM benchmark_metrics
-		GROUP BY submission_id
-		ORDER BY
-			((100000.0 / MIN(p99_micros)) * MAX(success_rate)) DESC,
-			MIN(p99_micros) ASC
-		LIMIT 100
 		`,
 	)
 
@@ -308,60 +305,38 @@ func (s *LeaderboardServer) getLeaderboardData(
 
 	defer rows.Close()
 
-	leaderboard :=
-		make(
-			[]LeaderboardRow,
-			0,
-			100,
-		)
-
-	rank := 1
+	bestRuns := make(map[string]LeaderboardRow)
 
 	for rows.Next() {
-
-		var row LeaderboardRow
-
+		var submissionID string
+		var p50 int64
 		var p99 int64
-
 		var successRate float64
 
 		if err := rows.Scan(
-			&row.SubmissionID,
+			&submissionID,
+			&p50,
 			&p99,
 			&successRate,
 		); err != nil {
-
 			s.logger.Printf(
 				"row scan failed err=%v",
 				err,
 			)
-
 			continue
 		}
 
-		row.Rank = rank
+		score := calculateScore(p50, p99, successRate)
 
-		row.P99Micros = p99
-
-		row.SuccessRate =
-			roundFloat(
-				successRate*100,
-				2,
-			)
-
-		row.Score =
-			calculateScore(
-				p99,
-				successRate,
-			)
-
-		leaderboard =
-			append(
-				leaderboard,
-				row,
-			)
-
-		rank++
+		existing, found := bestRuns[submissionID]
+		if !found || score > existing.Score || (score == existing.Score && p99 < existing.P99Micros) {
+			bestRuns[submissionID] = LeaderboardRow{
+				SubmissionID: submissionID,
+				P99Micros:    p99,
+				SuccessRate:  roundFloat(successRate*100, 2),
+				Score:        score,
+			}
+		}
 	}
 
 	if err := rows.Err(); err != nil {
@@ -380,6 +355,26 @@ func (s *LeaderboardServer) getLeaderboardData(
 		return
 	}
 
+	leaderboard := make([]LeaderboardRow, 0, len(bestRuns))
+	for _, row := range bestRuns {
+		leaderboard = append(leaderboard, row)
+	}
+
+	sort.Slice(leaderboard, func(i, j int) bool {
+		if leaderboard[i].Score != leaderboard[j].Score {
+			return leaderboard[i].Score > leaderboard[j].Score
+		}
+		return leaderboard[i].P99Micros < leaderboard[j].P99Micros
+	})
+
+	if len(leaderboard) > 100 {
+		leaderboard = leaderboard[:100]
+	}
+
+	for i := range leaderboard {
+		leaderboard[i].Rank = i + 1
+	}
+
 	writeJSON(
 		w,
 		http.StatusOK,
@@ -388,32 +383,40 @@ func (s *LeaderboardServer) getLeaderboardData(
 }
 
 func calculateScore(
+	p50Micros int64,
 	p99Micros int64,
 	successRate float64,
 ) float64 {
 
-	if p99Micros <= 0 {
+	if p99Micros <= 0 || p50Micros <= 0 {
 		return 0
 	}
 
-	score :=
-		(100000.0 /
-			float64(
-				p99Micros,
-			)) *
-			successRate *
-			100.0
+	// 1. Latency score: 100 points if p99 <= 400us, scaling down proportionally.
+	latencyScore := (400.0 / float64(p99Micros)) * 100.0
+	if latencyScore > 100.0 {
+		latencyScore = 100.0
+	}
 
-	score =
-		math.Min(
-			score,
-			100.0,
-		)
+	// 2. TPS score: estimated throughput, 100 points if p99 <= 600us (corresponds to high throughput).
+	tpsScore := (600.0 / float64(p99Micros)) * 100.0
+	if tpsScore > 100.0 {
+		tpsScore = 100.0
+	}
 
-	return roundFloat(
-		score,
-		2,
-	)
+	// 3. Correctness score: success rate of order matching (percentage).
+	correctnessScore := successRate * 100.0
+
+	// 4. Stability score: ratio of median (p50) to p99 latency.
+	stabilityScore := (float64(p50Micros) / float64(p99Micros)) * 100.0
+	if stabilityScore > 100.0 {
+		stabilityScore = 100.0
+	}
+
+	// Composite Score: 40% latency, 30% TPS, 20% correctness, 10% stability
+	score := (0.40 * latencyScore) + (0.30 * tpsScore) + (0.20 * correctnessScore) + (0.10 * stabilityScore)
+
+	return roundFloat(score, 2)
 }
 
 func roundFloat(

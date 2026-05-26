@@ -549,7 +549,8 @@ func (s *SubmissionServer) handleSubmit(
 		`SELECT COALESCE(MAX(id), 0) FROM benchmark_metrics`,
 	).Scan(&minID)
 
-	p99Micros,
+	p50Micros,
+		p99Micros,
 		successRate,
 		err := s.pollBenchmarkMetrics(
 		ctx,
@@ -566,18 +567,21 @@ func (s *SubmissionServer) handleSubmit(
 		)
 
 		if benchResponse.Latencies != nil {
-
-			p99Micros =
-				int64(benchResponse.
-					Latencies.
-					P99Micros)
+			p50Micros = int64(benchResponse.Latencies.P50Micros)
+			p99Micros = int64(benchResponse.Latencies.P99Micros)
 		}
 
-		successRate = 1.0
+		totalAcks := int64(benchResponse.SuccessfulAcks) + int64(benchResponse.FailedOrders)
+		if totalAcks > 0 {
+			successRate = float64(benchResponse.SuccessfulAcks) / float64(totalAcks)
+		} else {
+			successRate = 1.0
+		}
 	}
 
 	score :=
 		calculateScore(
+			p50Micros,
 			p99Micros,
 			successRate,
 		)
@@ -623,11 +627,7 @@ func (s *SubmissionServer) pollBenchmarkMetrics(
 	ctx context.Context,
 	submissionID string,
 	minID int64,
-) (
-	int64,
-	float64,
-	error,
-) {
+) (int64, int64, float64, error) {
 
 	timeout :=
 		time.After(
@@ -649,11 +649,13 @@ func (s *SubmissionServer) pollBenchmarkMetrics(
 
 			return 0,
 				0,
+				0,
 				ctx.Err()
 
 		case <-timeout:
 
 			return 0,
+				0,
 				0,
 				errors.New(
 					"benchmark polling timeout",
@@ -661,6 +663,7 @@ func (s *SubmissionServer) pollBenchmarkMetrics(
 
 		case <-ticker.C:
 
+			var p50 int64
 			var p99 int64
 
 			var successRate float64
@@ -669,6 +672,7 @@ func (s *SubmissionServer) pollBenchmarkMetrics(
 				ctx,
 				`
 				SELECT
+					p50_micros,
 					p99_micros,
 					success_rate
 				FROM benchmark_metrics
@@ -680,13 +684,15 @@ func (s *SubmissionServer) pollBenchmarkMetrics(
 				submissionID,
 				minID,
 			).Scan(
+				&p50,
 				&p99,
 				&successRate,
 			)
 
 			if err == nil {
 
-				return p99,
+				return p50,
+					p99,
 					successRate,
 					nil
 			}
@@ -742,31 +748,40 @@ func saveUploadedBinary(
 }
 
 func calculateScore(
+	p50Micros int64,
 	p99Micros int64,
 	successRate float64,
 ) float64 {
 
-	if p99Micros <= 0 {
+	if p99Micros <= 0 || p50Micros <= 0 {
 		return 0
 	}
 
-	score :=
-		(100000.0 /
-			float64(
-				p99Micros,
-			)) *
-			successRate *
-			100.0
+	// 1. Latency score: 100 points if p99 <= 400us, scaling down proportionally.
+	latencyScore := (400.0 / float64(p99Micros)) * 100.0
+	if latencyScore > 100.0 {
+		latencyScore = 100.0
+	}
 
-	score =
-		math.Min(
-			score,
-			100.0,
-		)
+	// 2. TPS score: estimated throughput, 100 points if p99 <= 600us (corresponds to high throughput).
+	tpsScore := (600.0 / float64(p99Micros)) * 100.0
+	if tpsScore > 100.0 {
+		tpsScore = 100.0
+	}
 
-	return math.Round(
-		score*100,
-	) / 100
+	// 3. Correctness score: success rate of order matching (percentage).
+	correctnessScore := successRate * 100.0
+
+	// 4. Stability score: ratio of median (p50) to p99 latency.
+	stabilityScore := (float64(p50Micros) / float64(p99Micros)) * 100.0
+	if stabilityScore > 100.0 {
+		stabilityScore = 100.0
+	}
+
+	// Composite Score: 40% latency, 30% TPS, 20% correctness, 10% stability
+	score := (0.40 * latencyScore) + (0.30 * tpsScore) + (0.20 * correctnessScore) + (0.10 * stabilityScore)
+
+	return math.Round(score*100) / 100
 }
 
 func healthHandler(

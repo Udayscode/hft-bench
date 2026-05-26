@@ -27,7 +27,12 @@ use benchmark_proto::{
     BenchmarkRequest,
     BenchmarkResponse,
     LatencyPercentiles,
+    StartRequest,
+    MatchOrderRequest,
+    CancelOrderRequest,
 };
+
+use benchmark_proto::benchmark_worker_client::BenchmarkWorkerClient;
 
 const SERVER_ADDR: &str = "[::1]:50052";
 
@@ -69,6 +74,39 @@ enum Order {
     Cancel {
         order_id: String,
     },
+}
+
+#[derive(serde::Deserialize, Debug, Clone)]
+struct ContestantTrade {
+    maker_order_id: u64,
+    taker_order_id: u64,
+    price: u64,
+    quantity: u32,
+}
+
+#[derive(serde::Deserialize, Debug, Clone)]
+struct ContestantResponse {
+    status: Option<String>,
+    trades: Option<Vec<ContestantTrade>>,
+}
+
+fn compare_trades(
+    shadow: &[benchmark_proto::TradeSignal],
+    contestant: &[ContestantTrade],
+) -> bool {
+    if shadow.len() != contestant.len() {
+        return false;
+    }
+    for (s, c) in shadow.iter().zip(contestant.iter()) {
+        if s.maker_order_id != c.maker_order_id
+            || s.taker_order_id != c.taker_order_id
+            || s.price != c.price
+            || s.quantity != c.quantity
+        {
+            return false;
+        }
+    }
+    true
 }
 
 #[derive(Serialize, Debug)]
@@ -196,8 +234,28 @@ for BenchmarkService {
         let benchmark_start =
             Instant::now();
 
+        let shadow_engine_url = std::env::var("SHADOW_ENGINE_URL")
+            .unwrap_or_else(|_| "http://localhost:50053".to_string());
+
+        let mut shadow_client = match BenchmarkWorkerClient::connect(shadow_engine_url).await {
+            Ok(client) => Some(client),
+            Err(e) => {
+                warn!("failed to connect to shadow engine: {}", e);
+                None
+            }
+        };
+
+        if let Some(ref mut client) = shadow_client {
+            let start_req = StartRequest {
+                submission_id: req.vm_id.clone(),
+            };
+            if let Err(e) = client.start_benchmark(start_req).await {
+                warn!("failed to start benchmark in shadow engine: {}", e);
+            }
+        }
+
         let (job_tx, job_rx) =
-            mpsc::channel::<String>(
+            mpsc::channel::<(usize, Order)>(
                 WORKER_CHANNEL_SIZE,
             );
 
@@ -225,6 +283,8 @@ for BenchmarkService {
             let target_clone =
                 target_endpoint.clone();
 
+            let mut shadow_client_clone = shadow_client.clone();
+
             let worker =
                 tokio::spawn(async move {
 
@@ -240,7 +300,7 @@ for BenchmarkService {
                             receiver.recv().await
                         };
 
-                        let payload =
+                        let (index, order) =
                             match next_payload {
 
                                 Some(payload) => payload,
@@ -248,14 +308,94 @@ for BenchmarkService {
                                 None => break,
                             };
 
+                        let payload_str = format!(
+                            "{}\n",
+                            serde_json::to_string(&order).unwrap(),
+                        );
+
                         let result =
                             blast_single_order(
                                 &target_clone,
-                                payload,
+                                payload_str,
                             ).await;
 
+                        let mut success = false;
+                        let mut order_latency = 0;
+
+                        if let Ok((latency, resp_str)) = result {
+                            order_latency = latency;
+
+                            let contestant_resp: Result<ContestantResponse, _> =
+                                serde_json::from_str(&resp_str);
+
+                            if let Ok(resp) = contestant_resp {
+                                let contestant_trades = resp.trades.unwrap_or_default();
+
+                                let mut shadow_trades = Vec::new();
+                                let mut grpc_success = true;
+
+                                if let Some(ref mut client) = shadow_client_clone {
+                                    match order {
+                                        Order::Limit { price, qty, ref side } => {
+                                            let grpc_side = if side == "buy" { 0 } else { 1 };
+                                            let match_req = MatchOrderRequest {
+                                                order_id: (index + 1) as u64,
+                                                price,
+                                                quantity: qty as u32,
+                                                side: grpc_side,
+                                            };
+                                            match client.match_order(match_req).await {
+                                                Ok(resp) => {
+                                                    shadow_trades = resp.into_inner().trades;
+                                                }
+                                                Err(e) => {
+                                                    warn!("shadow-engine MatchOrder failed: {}", e);
+                                                    grpc_success = false;
+                                                }
+                                            }
+                                        }
+                                        Order::Cancel { ref order_id } => {
+                                            if let Some(id_str) = order_id.strip_prefix("orig-") {
+                                                if let Ok(orig_index) = id_str.parse::<u64>() {
+                                                    let cancel_req = CancelOrderRequest {
+                                                        order_id: orig_index + 1,
+                                                    };
+                                                    if let Err(e) = client.cancel_order(cancel_req).await {
+                                                        warn!("shadow-engine CancelOrder failed: {}", e);
+                                                        grpc_success = false;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+
+                                if grpc_success {
+                                    if compare_trades(&shadow_trades, &contestant_trades) {
+                                        success = true;
+                                    } else {
+                                        warn!(
+                                            "Trade mismatch for order {}: shadow={:?}, contestant={:?}",
+                                            index + 1,
+                                            shadow_trades,
+                                            contestant_trades
+                                        );
+                                    }
+                                }
+                            } else {
+                                warn!("failed to parse contestant response: {}", resp_str);
+                            }
+                        }
+
+                        let result_payload = if success {
+                            Ok(order_latency)
+                        } else {
+                            Err(())
+                        };
+
                         if result_tx_clone
-                            .send(result)
+                            .send(result_payload)
                             .await
                             .is_err()
                         {
@@ -271,10 +411,10 @@ for BenchmarkService {
 
         for i in 0..total_orders {
 
-            let payload =
+            let order =
                 generate_single_order(i);
 
-            if job_tx.send(payload)
+            if job_tx.send((i, order))
                 .await
                 .is_err()
             {
@@ -483,7 +623,7 @@ fn validate_request(
 
 fn generate_single_order(
     index: usize,
-) -> String {
+) -> Order {
 
     let mut rng =
         rand::thread_rng();
@@ -497,7 +637,7 @@ fn generate_single_order(
         "sell".to_string()
     };
 
-    let order = match roll {
+    match roll {
 
         1..=60 => Order::Limit {
             price:
@@ -517,19 +657,13 @@ fn generate_single_order(
             order_id:
                 format!("orig-{}", index),
         },
-    };
-
-    format!(
-        "{}\n",
-        serde_json::to_string(&order)
-            .unwrap(),
-    )
+    }
 }
 
 async fn blast_single_order(
     target: &str,
     payload: String,
-) -> Result<u64, ()> {
+) -> Result<(u64, String), ()> {
 
     let start =
         Instant::now();
@@ -562,24 +696,27 @@ async fn blast_single_order(
     }
 
     let mut buffer =
-        [0u8; 64];
+        [0u8; 1024];
 
     let read_result = timeout(
         SOCKET_TIMEOUT,
         stream.read(&mut buffer),
     ).await;
 
-    match read_result {
+    let n = match read_result {
 
-        Ok(Ok(_)) => {}
+        Ok(Ok(n)) => n,
 
         _ => return Err(()),
-    }
+    };
 
-    Ok(
+    let resp_str = String::from_utf8_lossy(&buffer[..n]).into_owned();
+
+    Ok((
         start.elapsed()
-            .as_micros() as u64
-    )
+            .as_micros() as u64,
+        resp_str,
+    ))
 }
 
 fn calculate_percentiles(
