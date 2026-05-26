@@ -1,0 +1,19 @@
+[package]
+name = "bot-fleet"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8" 
+tonic = "0.10" 
+prost = "0.12" 
+rdkafka = { version = "0.36", features = ["tokio"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+
+[build-dependencies]
+tonic-build = "0.10" 
