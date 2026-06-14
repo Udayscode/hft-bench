@@ -53,3 +53,10 @@ orchestrator-bin
 *.tfstate.backup
 *.tfvars
 .terraform.lock.hcl
+
+# ─── Terraform ────────────────────────────────────────────────────────────────
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform.lock.hcl
