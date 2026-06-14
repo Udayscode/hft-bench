@@ -2,4 +2,4 @@ module github.com/uday/hft-bench/services/leaderboard
 
 go 1.22.2
 
-require github.com/mattn/go-sqlite3 v1.14.44
+require github.com/lib/pq v1.12.3

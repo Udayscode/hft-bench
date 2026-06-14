@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v3.6.1
-// source: proto/benchmark.proto
+// source: benchmark.proto
 
 package benchmarkpb
 
@@ -117,5 +117,183 @@ var BenchmarkController_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/benchmark.proto",
+	Metadata: "benchmark.proto",
+}
+
+const (
+	BenchmarkWorker_StartBenchmark_FullMethodName = "/benchmark.BenchmarkWorker/StartBenchmark"
+	BenchmarkWorker_MatchOrder_FullMethodName     = "/benchmark.BenchmarkWorker/MatchOrder"
+	BenchmarkWorker_CancelOrder_FullMethodName    = "/benchmark.BenchmarkWorker/CancelOrder"
+)
+
+// BenchmarkWorkerClient is the client API for BenchmarkWorker service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type BenchmarkWorkerClient interface {
+	StartBenchmark(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
+	MatchOrder(ctx context.Context, in *MatchOrderRequest, opts ...grpc.CallOption) (*MatchOrderResponse, error)
+	CancelOrder(ctx context.Context, in *CancelOrderRequest, opts ...grpc.CallOption) (*CancelOrderResponse, error)
+}
+
+type benchmarkWorkerClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewBenchmarkWorkerClient(cc grpc.ClientConnInterface) BenchmarkWorkerClient {
+	return &benchmarkWorkerClient{cc}
+}
+
+func (c *benchmarkWorkerClient) StartBenchmark(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartResponse)
+	err := c.cc.Invoke(ctx, BenchmarkWorker_StartBenchmark_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *benchmarkWorkerClient) MatchOrder(ctx context.Context, in *MatchOrderRequest, opts ...grpc.CallOption) (*MatchOrderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MatchOrderResponse)
+	err := c.cc.Invoke(ctx, BenchmarkWorker_MatchOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *benchmarkWorkerClient) CancelOrder(ctx context.Context, in *CancelOrderRequest, opts ...grpc.CallOption) (*CancelOrderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelOrderResponse)
+	err := c.cc.Invoke(ctx, BenchmarkWorker_CancelOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BenchmarkWorkerServer is the server API for BenchmarkWorker service.
+// All implementations must embed UnimplementedBenchmarkWorkerServer
+// for forward compatibility.
+type BenchmarkWorkerServer interface {
+	StartBenchmark(context.Context, *StartRequest) (*StartResponse, error)
+	MatchOrder(context.Context, *MatchOrderRequest) (*MatchOrderResponse, error)
+	CancelOrder(context.Context, *CancelOrderRequest) (*CancelOrderResponse, error)
+	mustEmbedUnimplementedBenchmarkWorkerServer()
+}
+
+// UnimplementedBenchmarkWorkerServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedBenchmarkWorkerServer struct{}
+
+func (UnimplementedBenchmarkWorkerServer) StartBenchmark(context.Context, *StartRequest) (*StartResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartBenchmark not implemented")
+}
+func (UnimplementedBenchmarkWorkerServer) MatchOrder(context.Context, *MatchOrderRequest) (*MatchOrderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MatchOrder not implemented")
+}
+func (UnimplementedBenchmarkWorkerServer) CancelOrder(context.Context, *CancelOrderRequest) (*CancelOrderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelOrder not implemented")
+}
+func (UnimplementedBenchmarkWorkerServer) mustEmbedUnimplementedBenchmarkWorkerServer() {}
+func (UnimplementedBenchmarkWorkerServer) testEmbeddedByValue()                         {}
+
+// UnsafeBenchmarkWorkerServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to BenchmarkWorkerServer will
+// result in compilation errors.
+type UnsafeBenchmarkWorkerServer interface {
+	mustEmbedUnimplementedBenchmarkWorkerServer()
+}
+
+func RegisterBenchmarkWorkerServer(s grpc.ServiceRegistrar, srv BenchmarkWorkerServer) {
+	// If the following call panics, it indicates UnimplementedBenchmarkWorkerServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&BenchmarkWorker_ServiceDesc, srv)
+}
+
+func _BenchmarkWorker_StartBenchmark_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BenchmarkWorkerServer).StartBenchmark(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BenchmarkWorker_StartBenchmark_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BenchmarkWorkerServer).StartBenchmark(ctx, req.(*StartRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BenchmarkWorker_MatchOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MatchOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BenchmarkWorkerServer).MatchOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BenchmarkWorker_MatchOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BenchmarkWorkerServer).MatchOrder(ctx, req.(*MatchOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BenchmarkWorker_CancelOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BenchmarkWorkerServer).CancelOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BenchmarkWorker_CancelOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BenchmarkWorkerServer).CancelOrder(ctx, req.(*CancelOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// BenchmarkWorker_ServiceDesc is the grpc.ServiceDesc for BenchmarkWorker service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var BenchmarkWorker_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "benchmark.BenchmarkWorker",
+	HandlerType: (*BenchmarkWorkerServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "StartBenchmark",
+			Handler:    _BenchmarkWorker_StartBenchmark_Handler,
+		},
+		{
+			MethodName: "MatchOrder",
+			Handler:    _BenchmarkWorker_MatchOrder_Handler,
+		},
+		{
+			MethodName: "CancelOrder",
+			Handler:    _BenchmarkWorker_CancelOrder_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "benchmark.proto",
 }

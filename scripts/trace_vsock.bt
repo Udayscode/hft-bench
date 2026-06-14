@@ -1,0 +1,50 @@
+#!/usr/bin/env bpftrace
+
+/*
+ * trace_fc_uds.bt - eBPF script to measure Firecracker Networking Overhead
+ *
+ * NOTE: Since WSL2 kernels can optimize out kprobes like `sock_sendmsg`, 
+ * we use stable syscall tracepoints instead to measure the socket latency.
+ */
+
+BEGIN
+{
+    printf("Tracing syscall network overhead. Hit Ctrl-C to stop.\n");
+}
+
+tracepoint:syscalls:sys_enter_sendto,
+tracepoint:syscalls:sys_enter_sendmsg
+{
+    @start_send[tid] = nsecs;
+}
+
+tracepoint:syscalls:sys_exit_sendto,
+tracepoint:syscalls:sys_exit_sendmsg
+/@start_send[tid]/
+{
+    $duration = nsecs - @start_send[tid];
+    @host_send_ns[comm] = hist($duration);
+    delete(@start_send[tid]);
+}
+
+tracepoint:syscalls:sys_enter_recvfrom,
+tracepoint:syscalls:sys_enter_recvmsg
+{
+    @start_recv[tid] = nsecs;
+}
+
+tracepoint:syscalls:sys_exit_recvfrom,
+tracepoint:syscalls:sys_exit_recvmsg
+/@start_recv[tid]/
+{
+    $duration = nsecs - @start_recv[tid];
+    @host_recv_ns[comm] = hist($duration);
+    delete(@start_recv[tid]);
+}
+
+END
+{
+    printf("\n=== Firecracker Host Network Overhead ===\n");
+    clear(@start_send);
+    clear(@start_recv);
+}

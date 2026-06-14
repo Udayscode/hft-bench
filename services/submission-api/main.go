@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 
 	bench "github.com/uday/hft-bench/services/submission-api/internal/pb/benchmark"
 	orch "github.com/uday/hft-bench/services/submission-api/internal/pb/orchestrator"
@@ -156,6 +156,13 @@ func main() {
 		submissionServer.handleSubmit,
 	)
 
+	mux.HandleFunc(
+		"/status",
+		submissionServer.handleStatus,
+	)
+
+	go submissionServer.startWorkerPool(2)
+
 	httpServer := &http.Server{
 		Addr: ListenAddr,
 
@@ -280,31 +287,36 @@ func (a *App) run() {
 }
 
 func initDB() (*sql.DB, error) {
-
-	dbPath := DBFile
-	if v := os.Getenv("DATABASE_PATH"); v != "" {
-		dbPath = v
+	dbUrl := os.Getenv("DATABASE_URL")
+	if dbUrl == "" {
+		dbUrl = "postgres://postgres:password@localhost:5432/hft_telemetry?sslmode=disable"
 	}
 
-	db, err := sql.Open(
-		"sqlite3",
-		dbPath,
-	)
-
+	db, err := sql.Open("postgres", dbUrl)
 	if err != nil {
 		return nil, err
 	}
 
 	db.SetMaxOpenConns(5)
-
 	db.SetMaxIdleConns(5)
-
-	db.SetConnMaxLifetime(
-		5 * time.Minute,
-	)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
+		return nil, err
+	}
 
+	_, err = db.Exec(`
+CREATE TABLE IF NOT EXISTS benchmark_jobs (
+    submission_id VARCHAR PRIMARY KEY,
+    status VARCHAR NOT NULL DEFAULT 'PENDING',
+    score NUMERIC DEFAULT 0,
+    p99_micros NUMERIC DEFAULT 0,
+    success_rate NUMERIC DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`)
+	if err != nil {
 		return nil, err
 	}
 
@@ -421,206 +433,18 @@ func (s *SubmissionServer) handleSubmit(
 		tempBinaryPath,
 	)
 
-	spawnResponse, err :=
-		s.orchClient.SpawnVM(ctx,
-			&orch.SpawnRequest{
-				SubmissionId: submissionID,
-				VcpuCount:    1,
-				MemoryMib:    256,
-			},
-		)
-
+		_, err = s.db.ExecContext(ctx, "INSERT INTO benchmark_jobs (submission_id, status) VALUES ($1, 'PENDING') ON CONFLICT (submission_id) DO UPDATE SET status = 'PENDING', score = 0, p99_micros = 0, success_rate = 0, updated_at = CURRENT_TIMESTAMP", submissionID)
 	if err != nil {
-
-		writeError(
-			w,
-			http.StatusInternalServerError,
-			fmt.Sprintf(
-				"vm spawn failed: %v",
-				err,
-			),
-		)
-
+		s.logger.Printf("failed to insert job err=%v", err)
+		writeError(w, http.StatusInternalServerError, "failed to queue job")
 		return
 	}
 
-	if !spawnResponse.Success {
-
-		writeError(
-			w,
-			http.StatusInternalServerError,
-			spawnResponse.ErrorMessage,
-		)
-
-		return
-	}
-
-	vmID := spawnResponse.VmId
-
-	targetIP :=
-		spawnResponse.IpAddress
-
-	if targetIP == "" {
-
-		targetIP = "172.16.0.2"
-	}
-
-	s.logger.Printf(
-		"vm spawned vm_id=%s ip=%s",
-		vmID,
-		targetIP,
-	)
-
-	defer func() {
-
-		_, err :=
-			s.orchClient.TeardownVM(
-				context.Background(),
-				&orch.TeardownRequest{
-					VmId: vmID,
-				},
-			)
-
-		if err != nil {
-
-			s.logger.Printf(
-				"vm teardown failed vm_id=%s err=%v",
-				vmID,
-				err,
-			)
-		}
-	}()
-
-	time.Sleep(
-		3000 * time.Millisecond,
-	)
-
-	benchResponse, err :=
-		s.benchClient.StartBenchmark(
-			ctx,
-			&bench.BenchmarkRequest{
-				VmId:
-					submissionID,
-
-				TargetIp:
-					targetIP,
-
-				Port: 8080,
-
-				TotalOrders:
-					1000,
-
-				Concurrency:
-					1,
-
-				Mode:
-					"burst",
-			},
-		)
-
-	if err != nil {
-
-		writeError(
-			w,
-			http.StatusInternalServerError,
-			fmt.Sprintf(
-				"benchmark failed: %v",
-				err,
-			),
-		)
-
-		return
-	}
-
-	if !benchResponse.Success {
-
-		writeError(
-			w,
-			http.StatusInternalServerError,
-			benchResponse.ErrorMessage,
-		)
-
-		return
-	}
-
-	var minID int64
-	_ = s.db.QueryRowContext(
-		ctx,
-		`SELECT COALESCE(MAX(id), 0) FROM benchmark_metrics`,
-	).Scan(&minID)
-
-	p50Micros,
-		p99Micros,
-		successRate,
-		err := s.pollBenchmarkMetrics(
-		ctx,
-		submissionID,
-		minID,
-	)
-
-	if err != nil {
-
-		s.logger.Printf(
-			"database polling failed fallbacking to grpc metrics submission_id=%s err=%v",
-			submissionID,
-			err,
-		)
-
-		if benchResponse.Latencies != nil {
-			p50Micros = int64(benchResponse.Latencies.P50Micros)
-			p99Micros = int64(benchResponse.Latencies.P99Micros)
-		}
-
-		totalAcks := int64(benchResponse.SuccessfulAcks) + int64(benchResponse.FailedOrders)
-		if totalAcks > 0 {
-			successRate = float64(benchResponse.SuccessfulAcks) / float64(totalAcks)
-		} else {
-			successRate = 1.0
-		}
-	}
-
-	score :=
-		calculateScore(
-			p50Micros,
-			p99Micros,
-			successRate,
-		)
-
-	response :=
-		SubmissionResponse{
-			SubmissionID:
-				submissionID,
-
-			P99Micros:
-				p99Micros,
-
-			Score:
-				score,
-
-			SuccessRate:
-				successRate,
-
-			TotalOrders:
-				int64(
-					benchResponse.
-						SuccessfulAcks +
-						benchResponse.
-							FailedOrders,
-				),
-		}
-
-	writeJSON(
-		w,
-		http.StatusOK,
-		response,
-	)
-
-	s.logger.Printf(
-		"submission complete submission_id=%s p99=%d score=%.2f",
-		submissionID,
-		p99Micros,
-		score,
-	)
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"submission_id": submissionID,
+		"status":        "PENDING",
+		"message":       "Benchmark job queued successfully",
+	})
 }
 
 func (s *SubmissionServer) pollBenchmarkMetrics(
@@ -676,8 +500,8 @@ func (s *SubmissionServer) pollBenchmarkMetrics(
 					p99_micros,
 					success_rate
 				FROM benchmark_metrics
-				WHERE submission_id = ?
-				  AND id > ?
+				WHERE submission_id = $1
+				  AND id > $2
 				ORDER BY id DESC
 				LIMIT 1
 				`,
@@ -894,4 +718,146 @@ func withRecovery(
 			)
 		},
 	)
+}
+func (s *SubmissionServer) handleStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	submissionID := r.URL.Query().Get("submission_id")
+	if submissionID == "" {
+		writeError(w, http.StatusBadRequest, "submission_id required")
+		return
+	}
+
+	var status string
+	var score, p99, success float64
+	err := s.db.QueryRow("SELECT status, score, p99_micros, success_rate FROM benchmark_jobs WHERE submission_id = $1", submissionID).Scan(&status, &score, &p99, &success)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "submission not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"submission_id": submissionID,
+		"status":        status,
+		"score":         score,
+		"p99_micros":    p99,
+		"success_rate":  success,
+	})
+}
+
+func (s *SubmissionServer) startWorkerPool(concurrency int) {
+	s.logger.Printf("Starting async benchmark worker pool with concurrency=%d", concurrency)
+	for i := 0; i < concurrency; i++ {
+		go func(workerID int) {
+			for {
+				time.Sleep(1 * time.Second)
+				s.processNextJob(workerID)
+			}
+		}(i)
+	}
+}
+
+func (s *SubmissionServer) processNextJob(workerID int) {
+	ctx := context.Background()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return
+	}
+	defer tx.Rollback()
+
+	var submissionID string
+	err = tx.QueryRow(`
+		SELECT submission_id FROM benchmark_jobs 
+		WHERE status = 'PENDING' 
+		FOR UPDATE SKIP LOCKED LIMIT 1
+	`).Scan(&submissionID)
+
+	if err != nil {
+		return // No pending jobs
+	}
+
+	_, err = tx.Exec("UPDATE benchmark_jobs SET status = 'RUNNING', updated_at = CURRENT_TIMESTAMP WHERE submission_id = $1", submissionID)
+	if err != nil {
+		return
+	}
+	tx.Commit()
+
+	s.logger.Printf("[Worker %d] Picked up job submission_id=%s", workerID, submissionID)
+	s.runBenchmarkSync(ctx, submissionID)
+}
+
+func (s *SubmissionServer) runBenchmarkSync(ctx context.Context, submissionID string) {
+	spawnResponse, err := s.orchClient.SpawnVM(ctx, &orch.SpawnRequest{
+		SubmissionId: submissionID,
+		VcpuCount:    1,
+		MemoryMib:    256,
+	})
+
+	if err != nil || !spawnResponse.Success {
+		s.logger.Printf("vm spawn failed submission_id=%s err=%v", submissionID, err)
+		s.db.Exec("UPDATE benchmark_jobs SET status = 'FAILED', updated_at = CURRENT_TIMESTAMP WHERE submission_id = $1", submissionID)
+		return
+	}
+
+	vmID := spawnResponse.VmId
+	targetIP := spawnResponse.IpAddress
+	if targetIP == "" {
+		targetIP = "172.16.0.2"
+	}
+
+	defer func() {
+		s.orchClient.TeardownVM(context.Background(), &orch.TeardownRequest{VmId: vmID})
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	benchResponse, err := s.benchClient.StartBenchmark(ctx, &bench.BenchmarkRequest{
+		VmId:        submissionID,
+		TargetIp:    targetIP,
+		Port:        8080,
+		TotalOrders: 1000,
+		Concurrency: 1,
+		Mode:        "burst",
+		VsockPath:   spawnResponse.VsockPath,
+	})
+
+	if err != nil || !benchResponse.Success {
+		s.logger.Printf("benchmark failed submission_id=%s err=%v", submissionID, err)
+		s.db.Exec("UPDATE benchmark_jobs SET status = 'FAILED', updated_at = CURRENT_TIMESTAMP WHERE submission_id = $1", submissionID)
+		return
+	}
+
+	var minID int64
+	_ = s.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(id), 0) FROM benchmark_metrics`).Scan(&minID)
+
+	p50Micros, p99Micros, successRate, err := s.pollBenchmarkMetrics(ctx, submissionID, minID)
+	if err != nil {
+		s.logger.Printf("db poll failed submission_id=%s err=%v", submissionID, err)
+		if benchResponse.Latencies != nil {
+			p50Micros = int64(benchResponse.Latencies.P50Micros)
+			p99Micros = int64(benchResponse.Latencies.P99Micros)
+		}
+		totalAcks := int64(benchResponse.SuccessfulAcks) + int64(benchResponse.FailedOrders)
+		if totalAcks > 0 {
+			successRate = float64(benchResponse.SuccessfulAcks) / float64(totalAcks)
+		} else {
+			successRate = 1.0
+		}
+	}
+
+	score := calculateScore(p50Micros, p99Micros, successRate)
+
+	_, err = s.db.Exec(`
+		UPDATE benchmark_jobs 
+		SET status = 'COMPLETED', score = $1, p99_micros = $2, success_rate = $3, updated_at = CURRENT_TIMESTAMP 
+		WHERE submission_id = $4
+	`, score, p99Micros, successRate, submissionID)
+	
+	if err != nil {
+		s.logger.Printf("failed to update job status submission_id=%s err=%v", submissionID, err)
+	} else {
+		s.logger.Printf("job completed submission_id=%s score=%.2f", submissionID, score)
+	}
 }

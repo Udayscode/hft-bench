@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v3.6.1
-// source: proto/benchmark.proto
+// source: benchmark.proto
 
 package benchmarkpb
 
@@ -22,20 +22,23 @@ const (
 )
 
 type BenchmarkRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	VmId          string                 `protobuf:"bytes,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
-	TargetIp      string                 `protobuf:"bytes,2,opt,name=target_ip,json=targetIp,proto3" json:"target_ip,omitempty"`
-	Port          int32                  `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
-	TotalOrders   int32                  `protobuf:"varint,4,opt,name=total_orders,json=totalOrders,proto3" json:"total_orders,omitempty"`
-	Concurrency   int32                  `protobuf:"varint,5,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
-	Mode          string                 `protobuf:"bytes,6,opt,name=mode,proto3" json:"mode,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	VmId        string                 `protobuf:"bytes,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
+	TargetIp    string                 `protobuf:"bytes,2,opt,name=target_ip,json=targetIp,proto3" json:"target_ip,omitempty"`
+	Port        int32                  `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
+	TotalOrders int32                  `protobuf:"varint,4,opt,name=total_orders,json=totalOrders,proto3" json:"total_orders,omitempty"`
+	Concurrency int32                  `protobuf:"varint,5,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
+	Mode        string                 `protobuf:"bytes,6,opt,name=mode,proto3" json:"mode,omitempty"`
+	// vsock_path is the host-side Unix Domain Socket for the Firecracker VSOCK device.
+	// When non-empty, bot-fleet connects here instead of TCP target_ip:port.
+	VsockPath     string `protobuf:"bytes,7,opt,name=vsock_path,json=vsockPath,proto3" json:"vsock_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BenchmarkRequest) Reset() {
 	*x = BenchmarkRequest{}
-	mi := &file_proto_benchmark_proto_msgTypes[0]
+	mi := &file_benchmark_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -47,7 +50,7 @@ func (x *BenchmarkRequest) String() string {
 func (*BenchmarkRequest) ProtoMessage() {}
 
 func (x *BenchmarkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_benchmark_proto_msgTypes[0]
+	mi := &file_benchmark_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60,7 +63,7 @@ func (x *BenchmarkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BenchmarkRequest.ProtoReflect.Descriptor instead.
 func (*BenchmarkRequest) Descriptor() ([]byte, []int) {
-	return file_proto_benchmark_proto_rawDescGZIP(), []int{0}
+	return file_benchmark_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *BenchmarkRequest) GetVmId() string {
@@ -105,18 +108,26 @@ func (x *BenchmarkRequest) GetMode() string {
 	return ""
 }
 
+func (x *BenchmarkRequest) GetVsockPath() string {
+	if x != nil {
+		return x.VsockPath
+	}
+	return ""
+}
+
 type LatencyPercentiles struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	P50Micros     uint64                 `protobuf:"varint,1,opt,name=p50_micros,json=p50Micros,proto3" json:"p50_micros,omitempty"`
 	P90Micros     uint64                 `protobuf:"varint,2,opt,name=p90_micros,json=p90Micros,proto3" json:"p90_micros,omitempty"`
 	P99Micros     uint64                 `protobuf:"varint,3,opt,name=p99_micros,json=p99Micros,proto3" json:"p99_micros,omitempty"`
+	P99_9Micros   uint64                 `protobuf:"varint,4,opt,name=p99_9_micros,json=p999Micros,proto3" json:"p99_9_micros,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LatencyPercentiles) Reset() {
 	*x = LatencyPercentiles{}
-	mi := &file_proto_benchmark_proto_msgTypes[1]
+	mi := &file_benchmark_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -128,7 +139,7 @@ func (x *LatencyPercentiles) String() string {
 func (*LatencyPercentiles) ProtoMessage() {}
 
 func (x *LatencyPercentiles) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_benchmark_proto_msgTypes[1]
+	mi := &file_benchmark_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -141,7 +152,7 @@ func (x *LatencyPercentiles) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LatencyPercentiles.ProtoReflect.Descriptor instead.
 func (*LatencyPercentiles) Descriptor() ([]byte, []int) {
-	return file_proto_benchmark_proto_rawDescGZIP(), []int{1}
+	return file_benchmark_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *LatencyPercentiles) GetP50Micros() uint64 {
@@ -165,6 +176,13 @@ func (x *LatencyPercentiles) GetP99Micros() uint64 {
 	return 0
 }
 
+func (x *LatencyPercentiles) GetP99_9Micros() uint64 {
+	if x != nil {
+		return x.P99_9Micros
+	}
+	return 0
+}
+
 type BenchmarkResponse struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Success        bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -179,7 +197,7 @@ type BenchmarkResponse struct {
 
 func (x *BenchmarkResponse) Reset() {
 	*x = BenchmarkResponse{}
-	mi := &file_proto_benchmark_proto_msgTypes[2]
+	mi := &file_benchmark_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -191,7 +209,7 @@ func (x *BenchmarkResponse) String() string {
 func (*BenchmarkResponse) ProtoMessage() {}
 
 func (x *BenchmarkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_benchmark_proto_msgTypes[2]
+	mi := &file_benchmark_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -204,7 +222,7 @@ func (x *BenchmarkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BenchmarkResponse.ProtoReflect.Descriptor instead.
 func (*BenchmarkResponse) Descriptor() ([]byte, []int) {
-	return file_proto_benchmark_proto_rawDescGZIP(), []int{2}
+	return file_benchmark_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *BenchmarkResponse) GetSuccess() bool {
@@ -249,84 +267,501 @@ func (x *BenchmarkResponse) GetLatencies() *LatencyPercentiles {
 	return nil
 }
 
-var File_proto_benchmark_proto protoreflect.FileDescriptor
+type StartRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SubmissionId  string                 `protobuf:"bytes,1,opt,name=submission_id,json=submissionId,proto3" json:"submission_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_proto_benchmark_proto_rawDesc = "" +
+func (x *StartRequest) Reset() {
+	*x = StartRequest{}
+	mi := &file_benchmark_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartRequest) ProtoMessage() {}
+
+func (x *StartRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_benchmark_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartRequest.ProtoReflect.Descriptor instead.
+func (*StartRequest) Descriptor() ([]byte, []int) {
+	return file_benchmark_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *StartRequest) GetSubmissionId() string {
+	if x != nil {
+		return x.SubmissionId
+	}
+	return ""
+}
+
+type StartResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartResponse) Reset() {
+	*x = StartResponse{}
+	mi := &file_benchmark_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartResponse) ProtoMessage() {}
+
+func (x *StartResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_benchmark_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartResponse.ProtoReflect.Descriptor instead.
+func (*StartResponse) Descriptor() ([]byte, []int) {
+	return file_benchmark_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *StartResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *StartResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type MatchOrderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       uint64                 `protobuf:"varint,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	Price         uint64                 `protobuf:"varint,2,opt,name=price,proto3" json:"price,omitempty"`
+	Quantity      uint32                 `protobuf:"varint,3,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	Side          int32                  `protobuf:"varint,4,opt,name=side,proto3" json:"side,omitempty"`
+	IsMarket      bool                   `protobuf:"varint,5,opt,name=is_market,json=isMarket,proto3" json:"is_market,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchOrderRequest) Reset() {
+	*x = MatchOrderRequest{}
+	mi := &file_benchmark_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchOrderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchOrderRequest) ProtoMessage() {}
+
+func (x *MatchOrderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_benchmark_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchOrderRequest.ProtoReflect.Descriptor instead.
+func (*MatchOrderRequest) Descriptor() ([]byte, []int) {
+	return file_benchmark_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *MatchOrderRequest) GetOrderId() uint64 {
+	if x != nil {
+		return x.OrderId
+	}
+	return 0
+}
+
+func (x *MatchOrderRequest) GetPrice() uint64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *MatchOrderRequest) GetQuantity() uint32 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+func (x *MatchOrderRequest) GetSide() int32 {
+	if x != nil {
+		return x.Side
+	}
+	return 0
+}
+
+func (x *MatchOrderRequest) GetIsMarket() bool {
+	if x != nil {
+		return x.IsMarket
+	}
+	return false
+}
+
+type TradeSignal struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MakerOrderId  uint64                 `protobuf:"varint,1,opt,name=maker_order_id,json=makerOrderId,proto3" json:"maker_order_id,omitempty"`
+	TakerOrderId  uint64                 `protobuf:"varint,2,opt,name=taker_order_id,json=takerOrderId,proto3" json:"taker_order_id,omitempty"`
+	Price         uint64                 `protobuf:"varint,3,opt,name=price,proto3" json:"price,omitempty"`
+	Quantity      uint32                 `protobuf:"varint,4,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TradeSignal) Reset() {
+	*x = TradeSignal{}
+	mi := &file_benchmark_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TradeSignal) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TradeSignal) ProtoMessage() {}
+
+func (x *TradeSignal) ProtoReflect() protoreflect.Message {
+	mi := &file_benchmark_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TradeSignal.ProtoReflect.Descriptor instead.
+func (*TradeSignal) Descriptor() ([]byte, []int) {
+	return file_benchmark_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *TradeSignal) GetMakerOrderId() uint64 {
+	if x != nil {
+		return x.MakerOrderId
+	}
+	return 0
+}
+
+func (x *TradeSignal) GetTakerOrderId() uint64 {
+	if x != nil {
+		return x.TakerOrderId
+	}
+	return 0
+}
+
+func (x *TradeSignal) GetPrice() uint64 {
+	if x != nil {
+		return x.Price
+	}
+	return 0
+}
+
+func (x *TradeSignal) GetQuantity() uint32 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+type MatchOrderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Trades        []*TradeSignal         `protobuf:"bytes,1,rep,name=trades,proto3" json:"trades,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchOrderResponse) Reset() {
+	*x = MatchOrderResponse{}
+	mi := &file_benchmark_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchOrderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchOrderResponse) ProtoMessage() {}
+
+func (x *MatchOrderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_benchmark_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchOrderResponse.ProtoReflect.Descriptor instead.
+func (*MatchOrderResponse) Descriptor() ([]byte, []int) {
+	return file_benchmark_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *MatchOrderResponse) GetTrades() []*TradeSignal {
+	if x != nil {
+		return x.Trades
+	}
+	return nil
+}
+
+type CancelOrderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OrderId       uint64                 `protobuf:"varint,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelOrderRequest) Reset() {
+	*x = CancelOrderRequest{}
+	mi := &file_benchmark_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelOrderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelOrderRequest) ProtoMessage() {}
+
+func (x *CancelOrderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_benchmark_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelOrderRequest.ProtoReflect.Descriptor instead.
+func (*CancelOrderRequest) Descriptor() ([]byte, []int) {
+	return file_benchmark_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *CancelOrderRequest) GetOrderId() uint64 {
+	if x != nil {
+		return x.OrderId
+	}
+	return 0
+}
+
+type CancelOrderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelOrderResponse) Reset() {
+	*x = CancelOrderResponse{}
+	mi := &file_benchmark_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelOrderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelOrderResponse) ProtoMessage() {}
+
+func (x *CancelOrderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_benchmark_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelOrderResponse.ProtoReflect.Descriptor instead.
+func (*CancelOrderResponse) Descriptor() ([]byte, []int) {
+	return file_benchmark_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CancelOrderResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+var File_benchmark_proto protoreflect.FileDescriptor
+
+const file_benchmark_proto_rawDesc = "" +
 	"\n" +
-	"\x15proto/benchmark.proto\x12\tbenchmark\"\xb1\x01\n" +
+	"\x0fbenchmark.proto\x12\tbenchmark\"\xd0\x01\n" +
 	"\x10BenchmarkRequest\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x1b\n" +
 	"\ttarget_ip\x18\x02 \x01(\tR\btargetIp\x12\x12\n" +
 	"\x04port\x18\x03 \x01(\x05R\x04port\x12!\n" +
 	"\ftotal_orders\x18\x04 \x01(\x05R\vtotalOrders\x12 \n" +
 	"\vconcurrency\x18\x05 \x01(\x05R\vconcurrency\x12\x12\n" +
-	"\x04mode\x18\x06 \x01(\tR\x04mode\"q\n" +
+	"\x04mode\x18\x06 \x01(\tR\x04mode\x12\x1d\n" +
+	"\n" +
+	"vsock_path\x18\a \x01(\tR\tvsockPath\"\x93\x01\n" +
 	"\x12LatencyPercentiles\x12\x1d\n" +
 	"\n" +
 	"p50_micros\x18\x01 \x01(\x04R\tp50Micros\x12\x1d\n" +
 	"\n" +
 	"p90_micros\x18\x02 \x01(\x04R\tp90Micros\x12\x1d\n" +
 	"\n" +
-	"p99_micros\x18\x03 \x01(\x04R\tp99Micros\"\x81\x02\n" +
+	"p99_micros\x18\x03 \x01(\x04R\tp99Micros\x12 \n" +
+	"\fp99_9_micros\x18\x04 \x01(\x04R\n" +
+	"p999Micros\"\x81\x02\n" +
 	"\x11BenchmarkResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
 	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\x12\"\n" +
 	"\rtotal_time_ms\x18\x03 \x01(\x03R\vtotalTimeMs\x12'\n" +
 	"\x0fsuccessful_acks\x18\x04 \x01(\x05R\x0esuccessfulAcks\x12#\n" +
 	"\rfailed_orders\x18\x05 \x01(\x05R\ffailedOrders\x12;\n" +
-	"\tlatencies\x18\x06 \x01(\v2\x1d.benchmark.LatencyPercentilesR\tlatencies2b\n" +
+	"\tlatencies\x18\x06 \x01(\v2\x1d.benchmark.LatencyPercentilesR\tlatencies\"3\n" +
+	"\fStartRequest\x12#\n" +
+	"\rsubmission_id\x18\x01 \x01(\tR\fsubmissionId\"C\n" +
+	"\rStartResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x91\x01\n" +
+	"\x11MatchOrderRequest\x12\x19\n" +
+	"\border_id\x18\x01 \x01(\x04R\aorderId\x12\x14\n" +
+	"\x05price\x18\x02 \x01(\x04R\x05price\x12\x1a\n" +
+	"\bquantity\x18\x03 \x01(\rR\bquantity\x12\x12\n" +
+	"\x04side\x18\x04 \x01(\x05R\x04side\x12\x1b\n" +
+	"\tis_market\x18\x05 \x01(\bR\bisMarket\"\x8b\x01\n" +
+	"\vTradeSignal\x12$\n" +
+	"\x0emaker_order_id\x18\x01 \x01(\x04R\fmakerOrderId\x12$\n" +
+	"\x0etaker_order_id\x18\x02 \x01(\x04R\ftakerOrderId\x12\x14\n" +
+	"\x05price\x18\x03 \x01(\x04R\x05price\x12\x1a\n" +
+	"\bquantity\x18\x04 \x01(\rR\bquantity\"D\n" +
+	"\x12MatchOrderResponse\x12.\n" +
+	"\x06trades\x18\x01 \x03(\v2\x16.benchmark.TradeSignalR\x06trades\"/\n" +
+	"\x12CancelOrderRequest\x12\x19\n" +
+	"\border_id\x18\x01 \x01(\x04R\aorderId\"/\n" +
+	"\x13CancelOrderResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess2b\n" +
 	"\x13BenchmarkController\x12K\n" +
-	"\x0eStartBenchmark\x12\x1b.benchmark.BenchmarkRequest\x1a\x1c.benchmark.BenchmarkResponseB>Z<services/sandbox-orchestrator/internal/api/proto;benchmarkpbb\x06proto3"
+	"\x0eStartBenchmark\x12\x1b.benchmark.BenchmarkRequest\x1a\x1c.benchmark.BenchmarkResponse2\xef\x01\n" +
+	"\x0fBenchmarkWorker\x12C\n" +
+	"\x0eStartBenchmark\x12\x17.benchmark.StartRequest\x1a\x18.benchmark.StartResponse\x12I\n" +
+	"\n" +
+	"MatchOrder\x12\x1c.benchmark.MatchOrderRequest\x1a\x1d.benchmark.MatchOrderResponse\x12L\n" +
+	"\vCancelOrder\x12\x1d.benchmark.CancelOrderRequest\x1a\x1e.benchmark.CancelOrderResponseB>Z<services/sandbox-orchestrator/internal/api/proto;benchmarkpbb\x06proto3"
 
 var (
-	file_proto_benchmark_proto_rawDescOnce sync.Once
-	file_proto_benchmark_proto_rawDescData []byte
+	file_benchmark_proto_rawDescOnce sync.Once
+	file_benchmark_proto_rawDescData []byte
 )
 
-func file_proto_benchmark_proto_rawDescGZIP() []byte {
-	file_proto_benchmark_proto_rawDescOnce.Do(func() {
-		file_proto_benchmark_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_benchmark_proto_rawDesc), len(file_proto_benchmark_proto_rawDesc)))
+func file_benchmark_proto_rawDescGZIP() []byte {
+	file_benchmark_proto_rawDescOnce.Do(func() {
+		file_benchmark_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_benchmark_proto_rawDesc), len(file_benchmark_proto_rawDesc)))
 	})
-	return file_proto_benchmark_proto_rawDescData
+	return file_benchmark_proto_rawDescData
 }
 
-var file_proto_benchmark_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_proto_benchmark_proto_goTypes = []any{
-	(*BenchmarkRequest)(nil),   // 0: benchmark.BenchmarkRequest
-	(*LatencyPercentiles)(nil), // 1: benchmark.LatencyPercentiles
-	(*BenchmarkResponse)(nil),  // 2: benchmark.BenchmarkResponse
+var file_benchmark_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_benchmark_proto_goTypes = []any{
+	(*BenchmarkRequest)(nil),    // 0: benchmark.BenchmarkRequest
+	(*LatencyPercentiles)(nil),  // 1: benchmark.LatencyPercentiles
+	(*BenchmarkResponse)(nil),   // 2: benchmark.BenchmarkResponse
+	(*StartRequest)(nil),        // 3: benchmark.StartRequest
+	(*StartResponse)(nil),       // 4: benchmark.StartResponse
+	(*MatchOrderRequest)(nil),   // 5: benchmark.MatchOrderRequest
+	(*TradeSignal)(nil),         // 6: benchmark.TradeSignal
+	(*MatchOrderResponse)(nil),  // 7: benchmark.MatchOrderResponse
+	(*CancelOrderRequest)(nil),  // 8: benchmark.CancelOrderRequest
+	(*CancelOrderResponse)(nil), // 9: benchmark.CancelOrderResponse
 }
-var file_proto_benchmark_proto_depIdxs = []int32{
+var file_benchmark_proto_depIdxs = []int32{
 	1, // 0: benchmark.BenchmarkResponse.latencies:type_name -> benchmark.LatencyPercentiles
-	0, // 1: benchmark.BenchmarkController.StartBenchmark:input_type -> benchmark.BenchmarkRequest
-	2, // 2: benchmark.BenchmarkController.StartBenchmark:output_type -> benchmark.BenchmarkResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	6, // 1: benchmark.MatchOrderResponse.trades:type_name -> benchmark.TradeSignal
+	0, // 2: benchmark.BenchmarkController.StartBenchmark:input_type -> benchmark.BenchmarkRequest
+	3, // 3: benchmark.BenchmarkWorker.StartBenchmark:input_type -> benchmark.StartRequest
+	5, // 4: benchmark.BenchmarkWorker.MatchOrder:input_type -> benchmark.MatchOrderRequest
+	8, // 5: benchmark.BenchmarkWorker.CancelOrder:input_type -> benchmark.CancelOrderRequest
+	2, // 6: benchmark.BenchmarkController.StartBenchmark:output_type -> benchmark.BenchmarkResponse
+	4, // 7: benchmark.BenchmarkWorker.StartBenchmark:output_type -> benchmark.StartResponse
+	7, // 8: benchmark.BenchmarkWorker.MatchOrder:output_type -> benchmark.MatchOrderResponse
+	9, // 9: benchmark.BenchmarkWorker.CancelOrder:output_type -> benchmark.CancelOrderResponse
+	6, // [6:10] is the sub-list for method output_type
+	2, // [2:6] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_proto_benchmark_proto_init() }
-func file_proto_benchmark_proto_init() {
-	if File_proto_benchmark_proto != nil {
+func init() { file_benchmark_proto_init() }
+func file_benchmark_proto_init() {
+	if File_benchmark_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_benchmark_proto_rawDesc), len(file_proto_benchmark_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_benchmark_proto_rawDesc), len(file_benchmark_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   10,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
-		GoTypes:           file_proto_benchmark_proto_goTypes,
-		DependencyIndexes: file_proto_benchmark_proto_depIdxs,
-		MessageInfos:      file_proto_benchmark_proto_msgTypes,
+		GoTypes:           file_benchmark_proto_goTypes,
+		DependencyIndexes: file_benchmark_proto_depIdxs,
+		MessageInfos:      file_benchmark_proto_msgTypes,
 	}.Build()
-	File_proto_benchmark_proto = out.File
-	file_proto_benchmark_proto_goTypes = nil
-	file_proto_benchmark_proto_depIdxs = nil
+	File_benchmark_proto = out.File
+	file_benchmark_proto_goTypes = nil
+	file_benchmark_proto_depIdxs = nil
 }

@@ -124,8 +124,18 @@ func SetupTapInterface(
 		)
 	}
 
+	// Egress (host -> vm)
+	if err := runCommand(ctx, "tc", "qdisc", "add", "dev", cfg.TAPName, "root", "tbf", "rate", "100mbit", "burst", "32kbit", "latency", "400ms"); err != nil {
+		log.Printf("warn: failed setting tc egress on %s: %v", cfg.TAPName, err)
+	}
+
+	// Ingress (vm -> host)
+	if err := runCommand(ctx, "tc", "qdisc", "add", "dev", cfg.TAPName, "handle", "ffff:", "ingress"); err == nil {
+		runCommand(ctx, "tc", "filter", "add", "dev", cfg.TAPName, "parent", "ffff:", "protocol", "all", "u32", "match", "u32", "0", "0", "police", "rate", "100mbit", "burst", "32kbit", "drop", "flowid", ":1")
+	}
+
 	log.Printf(
-		"tap interface ready tap=%s bridge=%s",
+		"tap interface ready and hardened tap=%s bridge=%s",
 		cfg.TAPName,
 		cfg.BridgeName,
 	)

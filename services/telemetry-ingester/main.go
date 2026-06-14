@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -141,36 +141,32 @@ func main() {
 
 func initDB() (*sql.DB, error) {
 
-	dbPath := DBFile
-	if v := os.Getenv("DATABASE_PATH"); v != "" {
-		dbPath = v
+	dbUrl := os.Getenv("DATABASE_URL")
+	if dbUrl == "" {
+		dbUrl = "postgres://postgres:password@localhost:5432/hft_telemetry?sslmode=disable"
 	}
 
-	db, err := sql.Open(
-		"sqlite3",
-		dbPath,
-	)
+	db, err := sql.Open("postgres", dbUrl)
 
 	if err != nil {
 		return nil, err
 	}
 
-	db.SetMaxOpenConns(1)
-
-	db.SetMaxIdleConns(1)
-
-	db.SetConnMaxLifetime(0)
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	schema := `
 	CREATE TABLE IF NOT EXISTS benchmark_metrics (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		id SERIAL,
 		submission_id TEXT NOT NULL,
-		p50_micros INTEGER NOT NULL,
-		p90_micros INTEGER NOT NULL,
-		p99_micros INTEGER NOT NULL,
-		total_orders INTEGER NOT NULL,
-		success_rate REAL NOT NULL,
-		timestamp INTEGER NOT NULL
+		p50_micros BIGINT NOT NULL,
+		p90_micros BIGINT NOT NULL,
+		p99_micros BIGINT NOT NULL,
+		total_orders BIGINT NOT NULL,
+		success_rate DOUBLE PRECISION NOT NULL,
+		timestamp BIGINT NOT NULL,
+		PRIMARY KEY (id, timestamp)
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_submission_id
@@ -184,6 +180,9 @@ func initDB() (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Make it a TimescaleDB hypertable if not already
+	_, _ = db.Exec("SELECT create_hypertable('benchmark_metrics', 'timestamp', chunk_time_interval => 86400000, if_not_exists => TRUE);")
 
 	return db, nil
 }
@@ -423,7 +422,7 @@ func persistBatch(
 			success_rate,
 			timestamp
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		`,
 	)
 

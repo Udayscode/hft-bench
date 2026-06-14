@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v3.6.1
-// source: proto/orchestrator.proto
+// source: orchestrator.proto
 
 package orchestratorpb
 
@@ -155,5 +155,5 @@ var VMController_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/orchestrator.proto",
+	Metadata: "orchestrator.proto",
 }

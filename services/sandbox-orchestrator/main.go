@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"log"
 	"net"
 	"os"
@@ -37,6 +39,7 @@ type ActiveVM struct {
 	IPAddress      string
 	TapName        string
 	SubmissionDisk string // Track target file for complete automated garbage collection cleanups
+	VsockPath      string // Host-side Unix Domain Socket path for the VSOCK device
 }
 
 type server struct {
@@ -71,12 +74,11 @@ func (s *server) SpawnVM(
 		req.MemoryMib,
 	)
 
-	// Fast duplicate prevention
-	s.mu.RLock()
+	// Thread-safe existence check and tentative registration to reserve IP/ID
+	s.mu.Lock()
 	_, exists := s.vmRegistry[vmID]
-	s.mu.RUnlock()
-
 	if exists {
+		s.mu.Unlock()
 		return &pb.SpawnResponse{
 			VmId:         "",
 			IpAddress:    "",
@@ -85,30 +87,46 @@ func (s *server) SpawnVM(
 		}, nil
 	}
 
+	ipIndex, err := s.findFreeIPIndex()
+	if err != nil {
+		s.mu.Unlock()
+		return nil, status.Error(codes.Internal, "IP allocation failed: "+err.Error())
+	}
+
+	computedIP, err := GenerateIPFromIndex(ipIndex)
+	if err != nil {
+		s.mu.Unlock()
+		return nil, status.Error(codes.Internal, "IP generation limits exceeded: "+err.Error())
+	}
+
+	// Tentatively register the VM to reserve the IP address
+	s.vmRegistry[vmID] = &ActiveVM{
+		VMID:      vmID,
+		IPAddress: computedIP,
+	}
+	s.mu.Unlock()
+
 	bootCtx, cancel := context.WithTimeout(
 		ctx,
 		bootTimeout,
 	)
-
 	defer cancel()
 
-	s.mu.RLock()
-	nextIndex := len(s.vmRegistry) + 2
-	s.mu.RUnlock()
-	
-	computedIP, err := GenerateIPFromIndex(nextIndex)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "IP generation limits exceeded: " + err.Error())
-	}
-	computedTap := "t-" + vmID
+	// TAP interface name must be ≤15 chars (Linux IFNAMSIZ-1 limit).
+	// Use FNV-32 hash of vmID to generate a deterministic 11-char name:
+	// "tap" + 8 hex digits = 11 chars, always within limit.
+	computedTap := tapNameForVM(vmID)
 
 	tapCfg := TAPConfig{
-		TAPName: computedTap,
+		TAPName:    computedTap,
 		BridgeName: "br0",
 	}
 
 	if err := SetupTapInterface(bootCtx, tapCfg); err != nil {
-		return nil, status.Error(codes.Internal, "host networking layer provisioning failed: " + err.Error())
+		s.mu.Lock()
+		delete(s.vmRegistry, vmID)
+		s.mu.Unlock()
+		return nil, status.Error(codes.Internal, "host networking layer provisioning failed: "+err.Error())
 	}
 
 	diskCfg := SubmissionImageConfig{
@@ -119,6 +137,9 @@ func (s *server) SpawnVM(
 	computedDisk, err := CreateSubmissionImage(bootCtx, diskCfg)
 	if err != nil {
 		_ = CleanupTapInterface(context.Background(), computedTap)
+		s.mu.Lock()
+		delete(s.vmRegistry, vmID)
+		s.mu.Unlock()
 		return nil, status.Error(codes.Internal, "submission disk provisioning failed: "+err.Error())
 	}
 
@@ -131,17 +152,21 @@ func (s *server) SpawnVM(
 		SocketDir:       socketDirectory,
 		TapName:         computedTap,
 		AllocatedIP:     computedIP,
-		SubmissionDisk: computedDisk,
+		SubmissionDisk:  computedDisk,
+		CID:             uint32(ipIndex + 10),
 	}
 
-	machine, err := CreateAndBootVM(bootCtx, cfg)
+	machine, err := CreateAndBootVM(bootCtx, &cfg)
 	if err != nil {
-
 		log.Printf(
 			"spawn failed vm_id=%s error=%v",
 			vmID,
 			err,
 		)
+		_ = CleanupTapInterface(context.Background(), computedTap)
+		s.mu.Lock()
+		delete(s.vmRegistry, vmID)
+		s.mu.Unlock()
 
 		return &pb.SpawnResponse{
 			VmId:         "",
@@ -152,12 +177,13 @@ func (s *server) SpawnVM(
 	}
 
 	activeVM := &ActiveVM{
-		Machine:   machine,
-		VMID:      vmID,
-		BootTime:  time.Now().UTC(),
-		IPAddress: computedIP,
-		TapName:   computedTap,
+		Machine:        machine,
+		VMID:           vmID,
+		BootTime:       time.Now().UTC(),
+		IPAddress:      computedIP,
+		TapName:        computedTap,
 		SubmissionDisk: computedDisk,
+		VsockPath:      cfg.VsockPath,
 	}
 
 	s.mu.Lock()
@@ -165,9 +191,10 @@ func (s *server) SpawnVM(
 	s.mu.Unlock()
 
 	log.Printf(
-		"spawn successful vm_id=%s ip=%s",
+		"spawn successful vm_id=%s ip=%s vsock=%s",
 		vmID,
 		activeVM.IPAddress,
+		activeVM.VsockPath,
 	)
 
 	return &pb.SpawnResponse{
@@ -175,6 +202,7 @@ func (s *server) SpawnVM(
 		IpAddress:    activeVM.IPAddress,
 		Success:      true,
 		ErrorMessage: "",
+		VsockPath:    activeVM.VsockPath,
 	}, nil
 }
 
@@ -375,3 +403,35 @@ func main() {
 
 	log.Println("orchestrator shutdown complete")
 }
+
+// tapNameForVM returns a deterministic TAP interface name for a given vmID.
+// Linux kernel limits network interface names to IFNAMSIZ-1 = 15 characters.
+// We use FNV-32a hash of the vmID to produce "tap" + 8 hex chars = 11 chars,
+// which is always within the limit regardless of submission_id length.
+func tapNameForVM(vmID string) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(vmID))
+	return fmt.Sprintf("tap%08x", h.Sum32())
+}
+
+// findFreeIPIndex scans the vmRegistry for occupied IP addresses and returns the first free index between 2 and 254.
+// Must be called with s.mu Lock held.
+func (s *server) findFreeIPIndex() (int, error) {
+	used := make(map[int]bool)
+	for _, vm := range s.vmRegistry {
+		if vm != nil && vm.IPAddress != "" {
+			var idx int
+			_, err := fmt.Sscanf(vm.IPAddress, "172.16.0.%d", &idx)
+			if err == nil {
+				used[idx] = true
+			}
+		}
+	}
+	for i := 2; i <= 254; i++ {
+		if !used[i] {
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("no free IP addresses available in subnet 172.16.0.0/24")
+}
+

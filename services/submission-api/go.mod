@@ -3,7 +3,7 @@ module github.com/uday/hft-bench/services/submission-api
 go 1.25.0
 
 require (
-	github.com/mattn/go-sqlite3 v1.14.44
+	github.com/lib/pq v1.12.3
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 )

@@ -37,3 +37,19 @@ services/submission-api/services/
 # ─── Misc ─────────────────────────────────────────────────────────────────────
 vendor/
 *.exe
+# ─── Next.js & Node ───────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+build/
+.env*.local
+
+# ─── Orchestrator root binary ─────────────────────────────────────────────────
+orchestrator-bin
+
+# ─── Terraform ────────────────────────────────────────────────────────────────
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform.lock.hcl

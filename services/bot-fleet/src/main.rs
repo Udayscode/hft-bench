@@ -62,17 +62,19 @@ enum Order {
         price: u64,
         qty: u64,
         side: String,
+        order_id: u64,
     },
 
     #[serde(rename = "market")]
     Market {
         qty: u64,
         side: String,
+        order_id: u64,
     },
 
     #[serde(rename = "cancel")]
     Cancel {
-        order_id: String,
+        order_id: u64,
     },
 }
 
@@ -284,9 +286,54 @@ for BenchmarkService {
                 target_endpoint.clone();
 
             let mut shadow_client_clone = shadow_client.clone();
+            let vm_id_clone = req.vm_id.clone();
+            let vsock_path_clone = req.vsock_path.clone();
+            let target_port = req.port;
 
             let worker =
                 tokio::spawn(async move {
+
+                    let is_vsock = !vsock_path_clone.trim().is_empty();
+                    let mut stream_unix = None;
+                    let mut stream_tcp = None;
+
+                    if is_vsock {
+                        let mut us = loop {
+                            let mut s = match tokio::time::timeout(std::time::Duration::from_millis(100), tokio::net::UnixStream::connect(vsock_path_clone.trim())).await {
+                                Ok(Ok(s)) => s,
+                                _ => {
+                                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                                    continue;
+                                }
+                            };
+                            let handshake = format!("CONNECT {}\n", target_port);
+                            if s.write_all(handshake.as_bytes()).await.is_err() {
+                                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                                continue;
+                            }
+                            let mut buf = [0u8; 32];
+                            if let Ok(Ok(n)) = tokio::time::timeout(tokio::time::Duration::from_millis(500), s.read(&mut buf)).await {
+                                let resp = String::from_utf8_lossy(&buf[..n]);
+                                if resp.starts_with("OK ") {
+                                    break s;
+                                }
+                            }
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        };
+                        stream_unix = Some(us);
+                    } else {
+                        let us = loop {
+                            match tokio::time::timeout(std::time::Duration::from_millis(100), tokio::net::TcpStream::connect(&target_clone)).await {
+                                Ok(Ok(s)) => break s,
+                                _ => {
+                                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                                    continue;
+                                }
+                            }
+                        };
+                        us.set_nodelay(true).ok();
+                        stream_tcp = Some(us);
+                    }
 
                     loop {
 
@@ -313,11 +360,17 @@ for BenchmarkService {
                             serde_json::to_string(&order).unwrap(),
                         );
 
-                        let result =
+                        let result = if is_vsock {
                             blast_single_order(
-                                &target_clone,
+                                stream_unix.as_mut().unwrap(),
                                 payload_str,
-                            ).await;
+                            ).await
+                        } else {
+                            blast_single_order(
+                                stream_tcp.as_mut().unwrap(),
+                                payload_str,
+                            ).await
+                        };
 
                         let mut success = false;
                         let mut order_latency = 0;
@@ -336,15 +389,20 @@ for BenchmarkService {
 
                                 if let Some(ref mut client) = shadow_client_clone {
                                     match order {
-                                        Order::Limit { price, qty, ref side } => {
+                                        Order::Limit { price, qty, ref side, order_id } => {
                                             let grpc_side = if side == "buy" { 0 } else { 1 };
                                             let match_req = MatchOrderRequest {
-                                                order_id: (index + 1) as u64,
+                                                order_id,
                                                 price,
                                                 quantity: qty as u32,
                                                 side: grpc_side,
+                                                is_market: false,
                                             };
-                                            match client.match_order(match_req).await {
+                                            let mut grpc_req = tonic::Request::new(match_req);
+                                            if let Ok(mval) = tonic::metadata::MetadataValue::try_from(&vm_id_clone) {
+                                                grpc_req.metadata_mut().insert("submission-id", mval);
+                                            }
+                                            match client.match_order(grpc_req).await {
                                                 Ok(resp) => {
                                                     shadow_trades = resp.into_inner().trades;
                                                 }
@@ -354,20 +412,42 @@ for BenchmarkService {
                                                 }
                                             }
                                         }
-                                        Order::Cancel { ref order_id } => {
-                                            if let Some(id_str) = order_id.strip_prefix("orig-") {
-                                                if let Ok(orig_index) = id_str.parse::<u64>() {
-                                                    let cancel_req = CancelOrderRequest {
-                                                        order_id: orig_index + 1,
-                                                    };
-                                                    if let Err(e) = client.cancel_order(cancel_req).await {
-                                                        warn!("shadow-engine CancelOrder failed: {}", e);
-                                                        grpc_success = false;
-                                                    }
+                                        Order::Market { qty, ref side, order_id } => {
+                                            let grpc_side = if side == "buy" { 0 } else { 1 };
+                                            let match_req = MatchOrderRequest {
+                                                order_id,
+                                                price: 0,
+                                                quantity: qty as u32,
+                                                side: grpc_side,
+                                                is_market: true,
+                                            };
+                                            let mut grpc_req = tonic::Request::new(match_req);
+                                            if let Ok(mval) = tonic::metadata::MetadataValue::try_from(&vm_id_clone) {
+                                                grpc_req.metadata_mut().insert("submission-id", mval);
+                                            }
+                                            match client.match_order(grpc_req).await {
+                                                Ok(resp) => {
+                                                    shadow_trades = resp.into_inner().trades;
+                                                }
+                                                Err(e) => {
+                                                    warn!("shadow-engine MatchOrder failed: {}", e);
+                                                    grpc_success = false;
                                                 }
                                             }
                                         }
-                                        _ => {}
+                                        Order::Cancel { order_id } => {
+                                            let cancel_req = CancelOrderRequest {
+                                                order_id,
+                                            };
+                                            let mut grpc_req = tonic::Request::new(cancel_req);
+                                            if let Ok(mval) = tonic::metadata::MetadataValue::try_from(&vm_id_clone) {
+                                                grpc_req.metadata_mut().insert("submission-id", mval);
+                                            }
+                                            if let Err(e) = client.cancel_order(grpc_req).await {
+                                                warn!("shadow-engine CancelOrder failed: {}", e);
+                                                grpc_success = false;
+                                            }
+                                        }
                                     }
                                 }
 
@@ -409,10 +489,11 @@ for BenchmarkService {
 
         drop(result_tx);
 
+        let mut active_limit_orders = Vec::new();
         for i in 0..total_orders {
 
             let order =
-                generate_single_order(i);
+                generate_single_order(i, &mut active_limit_orders);
 
             if job_tx.send((i, order))
                 .await
@@ -623,6 +704,7 @@ fn validate_request(
 
 fn generate_single_order(
     index: usize,
+    active_limit_orders: &mut Vec<u64>,
 ) -> Order {
 
     let mut rng =
@@ -637,49 +719,51 @@ fn generate_single_order(
         "sell".to_string()
     };
 
+    let order_id = (index + 1) as u64;
+
     match roll {
 
-        1..=60 => Order::Limit {
-            price:
-                rng.gen_range(90..110),
-            qty:
-                rng.gen_range(1..50),
-            side,
-        },
+        1..=60 => {
+            active_limit_orders.push(order_id);
+            Order::Limit {
+                price: rng.gen_range(90..110),
+                qty: rng.gen_range(1..50),
+                side,
+                order_id,
+            }
+        }
 
         61..=85 => Order::Market {
             qty:
                 rng.gen_range(1..20),
             side,
+            order_id,
         },
 
-        _ => Order::Cancel {
-            order_id:
-                format!("orig-{}", index),
-        },
+        _ => {
+            let target_order_id = if active_limit_orders.is_empty() {
+                order_id
+            } else {
+                let idx = rng.gen_range(0..active_limit_orders.len());
+                active_limit_orders.remove(idx)
+            };
+            Order::Cancel {
+                order_id: target_order_id,
+            }
+        }
     }
 }
 
-async fn blast_single_order(
-    target: &str,
+async fn blast_single_order<S>(
+    stream: &mut S,
     payload: String,
-) -> Result<(u64, String), ()> {
+) -> Result<(u64, String), ()>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+{
 
     let start =
         Instant::now();
-
-    let connection = timeout(
-        SOCKET_TIMEOUT,
-        TcpStream::connect(target),
-    ).await;
-
-    let mut stream =
-        match connection {
-
-            Ok(Ok(stream)) => stream,
-
-            _ => return Err(()),
-        };
 
     let write_result = timeout(
         SOCKET_TIMEOUT,
@@ -729,6 +813,7 @@ fn calculate_percentiles(
             p50_micros: 0,
             p90_micros: 0,
             p99_micros: 0,
+            p99_9_micros: 0,
         };
     }
 
@@ -736,6 +821,8 @@ fn calculate_percentiles(
 
     let len =
         latencies.len();
+
+    let p99_9_index = ((len * 999) / 1000).min(len - 1);
 
     LatencyPercentiles {
 
@@ -759,6 +846,9 @@ fn calculate_percentiles(
                 len,
                 99,
             ),
+
+        p99_9_micros:
+            latencies[p99_9_index],
     }
 }
 

@@ -3,7 +3,7 @@ module hft-bench/telemetry-ingester
 go 1.25.0
 
 require (
-	github.com/mattn/go-sqlite3 v1.14.44
+	github.com/lib/pq v1.12.3
 	github.com/twmb/franz-go v1.21.2
 )
 

@@ -29,6 +29,8 @@ message SpawnResponse {
     bool success = 3;
 
     string error_message = 4;
+
+    string vsock_path = 5;
 }
 
 message TeardownRequest {

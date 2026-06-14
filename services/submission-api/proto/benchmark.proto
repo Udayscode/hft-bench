@@ -14,13 +14,15 @@ message BenchmarkRequest {
     int32 port = 3;
     int32 total_orders = 4;
     int32 concurrency = 5;
-    string mode = 6; 
+    string mode = 6;
+    string vsock_path = 7;
 }
 
 message LatencyPercentiles {
     uint64 p50_micros = 1;
     uint64 p90_micros = 2;
     uint64 p99_micros = 3;
+    uint64 p99_9_micros = 4;
 }
 
 message BenchmarkResponse {
@@ -52,6 +54,7 @@ message MatchOrderRequest {
     uint64 price = 2;
     uint32 quantity = 3;
     int32 side = 4;
+    bool is_market = 5;
 }
 
 message TradeSignal {

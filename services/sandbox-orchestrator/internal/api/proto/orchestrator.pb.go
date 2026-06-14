@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v3.6.1
-// source: proto/orchestrator.proto
+// source: orchestrator.proto
 
 package orchestratorpb
 
@@ -54,11 +54,11 @@ func (x EnvironmentType) String() string {
 }
 
 func (EnvironmentType) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_orchestrator_proto_enumTypes[0].Descriptor()
+	return file_orchestrator_proto_enumTypes[0].Descriptor()
 }
 
 func (EnvironmentType) Type() protoreflect.EnumType {
-	return &file_proto_orchestrator_proto_enumTypes[0]
+	return &file_orchestrator_proto_enumTypes[0]
 }
 
 func (x EnvironmentType) Number() protoreflect.EnumNumber {
@@ -67,7 +67,7 @@ func (x EnvironmentType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use EnvironmentType.Descriptor instead.
 func (EnvironmentType) EnumDescriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{0}
+	return file_orchestrator_proto_rawDescGZIP(), []int{0}
 }
 
 type SpawnRequest struct {
@@ -82,7 +82,7 @@ type SpawnRequest struct {
 
 func (x *SpawnRequest) Reset() {
 	*x = SpawnRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[0]
+	mi := &file_orchestrator_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -94,7 +94,7 @@ func (x *SpawnRequest) String() string {
 func (*SpawnRequest) ProtoMessage() {}
 
 func (x *SpawnRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[0]
+	mi := &file_orchestrator_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -107,7 +107,7 @@ func (x *SpawnRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpawnRequest.ProtoReflect.Descriptor instead.
 func (*SpawnRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{0}
+	return file_orchestrator_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *SpawnRequest) GetSubmissionId() string {
@@ -139,18 +139,19 @@ func (x *SpawnRequest) GetEnvType() EnvironmentType {
 }
 
 type SpawnResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	VmId          string                 `protobuf:"bytes,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
-	IpAddress     string                 `protobuf:"bytes,2,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
-	Success       bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
-	ErrorMessage  string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	VmId         string                 `protobuf:"bytes,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
+	IpAddress    string                 `protobuf:"bytes,2,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
+	Success      bool                   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
+	ErrorMessage string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	VsockPath     string                 `protobuf:"bytes,5,opt,name=vsock_path,json=vsockPath,proto3" json:"vsock_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SpawnResponse) Reset() {
 	*x = SpawnResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[1]
+	mi := &file_orchestrator_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -162,7 +163,7 @@ func (x *SpawnResponse) String() string {
 func (*SpawnResponse) ProtoMessage() {}
 
 func (x *SpawnResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[1]
+	mi := &file_orchestrator_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -175,7 +176,7 @@ func (x *SpawnResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpawnResponse.ProtoReflect.Descriptor instead.
 func (*SpawnResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{1}
+	return file_orchestrator_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *SpawnResponse) GetVmId() string {
@@ -206,6 +207,13 @@ func (x *SpawnResponse) GetErrorMessage() string {
 	return ""
 }
 
+func (x *SpawnResponse) GetVsockPath() string {
+	if x != nil {
+		return x.VsockPath
+	}
+	return ""
+}
+
 type TeardownRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	VmId          string                 `protobuf:"bytes,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
@@ -216,7 +224,7 @@ type TeardownRequest struct {
 
 func (x *TeardownRequest) Reset() {
 	*x = TeardownRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[2]
+	mi := &file_orchestrator_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -228,7 +236,7 @@ func (x *TeardownRequest) String() string {
 func (*TeardownRequest) ProtoMessage() {}
 
 func (x *TeardownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[2]
+	mi := &file_orchestrator_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -241,7 +249,7 @@ func (x *TeardownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TeardownRequest.ProtoReflect.Descriptor instead.
 func (*TeardownRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{2}
+	return file_orchestrator_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *TeardownRequest) GetVmId() string {
@@ -268,7 +276,7 @@ type TeardownResponse struct {
 
 func (x *TeardownResponse) Reset() {
 	*x = TeardownResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[3]
+	mi := &file_orchestrator_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -280,7 +288,7 @@ func (x *TeardownResponse) String() string {
 func (*TeardownResponse) ProtoMessage() {}
 
 func (x *TeardownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[3]
+	mi := &file_orchestrator_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -293,7 +301,7 @@ func (x *TeardownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TeardownResponse.ProtoReflect.Descriptor instead.
 func (*TeardownResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{3}
+	return file_orchestrator_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TeardownResponse) GetSuccess() bool {
@@ -310,24 +318,26 @@ func (x *TeardownResponse) GetErrorMessage() string {
 	return ""
 }
 
-var File_proto_orchestrator_proto protoreflect.FileDescriptor
+var File_orchestrator_proto protoreflect.FileDescriptor
 
-const file_proto_orchestrator_proto_rawDesc = "" +
+const file_orchestrator_proto_rawDesc = "" +
 	"\n" +
-	"\x18proto/orchestrator.proto\x12\forchestrator\"\xab\x01\n" +
+	"\x12orchestrator.proto\x12\forchestrator\"\xab\x01\n" +
 	"\fSpawnRequest\x12#\n" +
 	"\rsubmission_id\x18\x01 \x01(\tR\fsubmissionId\x12\x1d\n" +
 	"\n" +
 	"vcpu_count\x18\x02 \x01(\x05R\tvcpuCount\x12\x1d\n" +
 	"\n" +
 	"memory_mib\x18\x03 \x01(\x05R\tmemoryMib\x128\n" +
-	"\benv_type\x18\x04 \x01(\x0e2\x1d.orchestrator.EnvironmentTypeR\aenvType\"\x82\x01\n" +
+	"\benv_type\x18\x04 \x01(\x0e2\x1d.orchestrator.EnvironmentTypeR\aenvType\"\xa1\x01\n" +
 	"\rSpawnResponse\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x1d\n" +
 	"\n" +
 	"ip_address\x18\x02 \x01(\tR\tipAddress\x12\x18\n" +
 	"\asuccess\x18\x03 \x01(\bR\asuccess\x12#\n" +
-	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"<\n" +
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\x12\x1d\n" +
+	"\n" +
+	"vsock_path\x18\x05 \x01(\tR\tvsockPath\"<\n" +
 	"\x0fTeardownRequest\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\"Q\n" +
@@ -346,27 +356,27 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"TeardownVM\x12\x1d.orchestrator.TeardownRequest\x1a\x1e.orchestrator.TeardownResponseBAZ?services/sandbox-orchestrator/internal/api/proto;orchestratorpbb\x06proto3"
 
 var (
-	file_proto_orchestrator_proto_rawDescOnce sync.Once
-	file_proto_orchestrator_proto_rawDescData []byte
+	file_orchestrator_proto_rawDescOnce sync.Once
+	file_orchestrator_proto_rawDescData []byte
 )
 
-func file_proto_orchestrator_proto_rawDescGZIP() []byte {
-	file_proto_orchestrator_proto_rawDescOnce.Do(func() {
-		file_proto_orchestrator_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_orchestrator_proto_rawDesc), len(file_proto_orchestrator_proto_rawDesc)))
+func file_orchestrator_proto_rawDescGZIP() []byte {
+	file_orchestrator_proto_rawDescOnce.Do(func() {
+		file_orchestrator_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_orchestrator_proto_rawDesc), len(file_orchestrator_proto_rawDesc)))
 	})
-	return file_proto_orchestrator_proto_rawDescData
+	return file_orchestrator_proto_rawDescData
 }
 
-var file_proto_orchestrator_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_orchestrator_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_proto_orchestrator_proto_goTypes = []any{
+var file_orchestrator_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_orchestrator_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_orchestrator_proto_goTypes = []any{
 	(EnvironmentType)(0),     // 0: orchestrator.EnvironmentType
 	(*SpawnRequest)(nil),     // 1: orchestrator.SpawnRequest
 	(*SpawnResponse)(nil),    // 2: orchestrator.SpawnResponse
 	(*TeardownRequest)(nil),  // 3: orchestrator.TeardownRequest
 	(*TeardownResponse)(nil), // 4: orchestrator.TeardownResponse
 }
-var file_proto_orchestrator_proto_depIdxs = []int32{
+var file_orchestrator_proto_depIdxs = []int32{
 	0, // 0: orchestrator.SpawnRequest.env_type:type_name -> orchestrator.EnvironmentType
 	1, // 1: orchestrator.VMController.SpawnVM:input_type -> orchestrator.SpawnRequest
 	3, // 2: orchestrator.VMController.TeardownVM:input_type -> orchestrator.TeardownRequest
@@ -379,27 +389,27 @@ var file_proto_orchestrator_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_proto_orchestrator_proto_init() }
-func file_proto_orchestrator_proto_init() {
-	if File_proto_orchestrator_proto != nil {
+func init() { file_orchestrator_proto_init() }
+func file_orchestrator_proto_init() {
+	if File_orchestrator_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_orchestrator_proto_rawDesc), len(file_proto_orchestrator_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_orchestrator_proto_rawDesc), len(file_orchestrator_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_orchestrator_proto_goTypes,
-		DependencyIndexes: file_proto_orchestrator_proto_depIdxs,
-		EnumInfos:         file_proto_orchestrator_proto_enumTypes,
-		MessageInfos:      file_proto_orchestrator_proto_msgTypes,
+		GoTypes:           file_orchestrator_proto_goTypes,
+		DependencyIndexes: file_orchestrator_proto_depIdxs,
+		EnumInfos:         file_orchestrator_proto_enumTypes,
+		MessageInfos:      file_orchestrator_proto_msgTypes,
 	}.Build()
-	File_proto_orchestrator_proto = out.File
-	file_proto_orchestrator_proto_goTypes = nil
-	file_proto_orchestrator_proto_depIdxs = nil
+	File_orchestrator_proto = out.File
+	file_orchestrator_proto_goTypes = nil
+	file_orchestrator_proto_depIdxs = nil
 }
