@@ -27,7 +27,7 @@ mv firecracker /usr/local/bin/firecracker
 # 4. Clone Platform Repository (In a real setup, pull pre-compiled binaries from S3)
 mkdir -p /opt/iicpc
 cd /opt/iicpc
-git clone https://github.com/your-org/hft-bench.git .
+git clone https://github.com/Udayscode/hft-bench.git .
 
 # 5. Build Sandbox Orchestrator
 cd services/sandbox-orchestrator
