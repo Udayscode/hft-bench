@@ -40,6 +40,10 @@ type ActiveVM struct {
 	TapName        string
 	SubmissionDisk string // Track target file for complete automated garbage collection cleanups
 	VsockPath      string // Host-side Unix Domain Socket path for the VSOCK device
+
+	// eBPF TC latency prober — nil if kernel-level probing is unavailable.
+	Prober        *TapProber
+	ProbeConsumer *ProbeConsumer
 }
 
 type server struct {
@@ -129,6 +133,16 @@ func (s *server) SpawnVM(
 		return nil, status.Error(codes.Internal, "host networking layer provisioning failed: "+err.Error())
 	}
 
+	// [DIAGNOSTIC] eBPF TC prober temporarily disabled to isolate latency regression.
+	// Uncomment to re-enable kernel-level nanosecond measurement.
+	var prober *TapProber
+	// prober, err := AttachProber(computedTap)
+	// if err != nil {
+	// 	log.Printf("[ebpf-prober] warn: failed attaching prober tap=%s vm_id=%s err=%v (continuing without kernel metrics)",
+	// 		computedTap, vmID, err)
+	// }
+	_ = computedTap // suppress unused warning
+
 	diskCfg := SubmissionImageConfig{
 		SubmissionID: vmID,
 		StrategyPath: "../../sandbox/strategy_bin",
@@ -176,6 +190,24 @@ func (s *server) SpawnVM(
 		}, nil
 	}
 
+	// Start the ring buffer consumer only when the prober attached successfully.
+	var probeConsumer *ProbeConsumer
+	if prober != nil {
+		probeConsumer, err = StartProbeConsumer(
+			context.Background(), // long-lived — outlives bootCtx
+			vmID,
+			vmID, // submissionID == vmID in this orchestrator
+			prober,
+			nil,           // kafkaClient: pass nil to disable Kafka forwarding for now
+			ProbeKafkaTopic,
+		)
+		if err != nil {
+			log.Printf("[probe-consumer] warn: failed starting consumer vm_id=%s err=%v", vmID, err)
+			DetachProber(prober)
+			prober = nil
+		}
+	}
+
 	activeVM := &ActiveVM{
 		Machine:        machine,
 		VMID:           vmID,
@@ -184,6 +216,8 @@ func (s *server) SpawnVM(
 		TapName:        computedTap,
 		SubmissionDisk: computedDisk,
 		VsockPath:      cfg.VsockPath,
+		Prober:         prober,
+		ProbeConsumer:  probeConsumer,
 	}
 
 	s.mu.Lock()
@@ -260,8 +294,14 @@ func (s *server) TeardownVM(
 
 	s.mu.Lock()
 	tapToCleanup := activeVM.TapName
+	proberToDetach := activeVM.Prober
+	consumerToStop := activeVM.ProbeConsumer
 	delete(s.vmRegistry, vmID)
 	s.mu.Unlock()
+
+	// Stop consumer before detaching prober — prevents use-after-free on map fd.
+	StopProbeConsumer(consumerToStop)
+	DetachProber(proberToDetach)
 
 	if err := CleanupTapInterface(context.Background(), tapToCleanup); err != nil {
 		log.Printf("[Network Warning] Failed purging link interface %s: %v", tapToCleanup, err)
@@ -334,12 +374,15 @@ func (s *server) shutdownAllVMs() {
 			)
 		}
 
+		// Tear down eBPF prober before the TAP interface is removed.
+		StopProbeConsumer(activeVM.ProbeConsumer)
+		DetachProber(activeVM.Prober)
+
 		delete(s.vmRegistry, vmID)
 		_ = CleanupTapInterface(context.Background(), tapToCleanup)
 
 		diskToCleanup := activeVM.SubmissionDisk
 
-		_ = CleanupTapInterface(context.Background(), tapToCleanup)
 		_ = CleanupSubmissionImage(diskToCleanup)
 	}
 }

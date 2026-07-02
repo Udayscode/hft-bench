@@ -70,7 +70,7 @@ fi
 (
     cd "$ORCHESTRATOR_DIR"
     echo "Building Go orchestrator binary..."
-    CGO_ENABLED=1 go build -o orchestrator-bin -ldflags "-s -w" main.go disk.go network.go firecracker.go
+    CGO_ENABLED=1 go build -o orchestrator-bin -ldflags "-s -w" .
     echo "Build successful."
 )
 
